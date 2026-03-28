@@ -1,6 +1,6 @@
-# Claude Agent SDK -- Comprehensive Guide for 3XCode Convertor
+# Claude Agent SDK -- Comprehensive Guide 
 
-A complete reference for the Claude Agent SDK (v0.1.51, bundling CLI v2.1.85) as used in the SQL-to-PySpark converter pipeline. This guide covers installation, authentication, the `query()` API, `ClaudeSDKClient`, all configuration options (37 parameters), tool systems (17 built-in tools), custom MCP tools, hooks, subagents, cost tracking, and practical patterns from the 3XCode Convertor project.
+A complete reference for the Claude Agent SDK (v0.1.51, bundling CLI v2.1.85) . This guide covers installation, authentication, the `query()` API, `ClaudeSDKClient`, all configuration options (37 parameters), tool systems (17 built-in tools), custom MCP tools, hooks, subagents, cost tracking, and practical patterns from the 3XCode Convertor project.
 
 > **Package History:** The SDK was originally published as `claude-code-sdk` (`ClaudeCodeOptions`) and renamed to `claude-agent-sdk` (`ClaudeAgentOptions`) in v0.1.0 (Sep 28, 2025). There have been 53 releases to date (v0.0.23 through v0.1.51).
 
