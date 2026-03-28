@@ -1,7 +1,7 @@
 import asyncio
 import os
 from dotenv import load_dotenv
-from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
+from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage, AssistantMessage
 
 # load_dotenv() reads .env file and puts values into os.environ
 # In production (Docker/K8s/Lambda) this line does nothing —
@@ -24,7 +24,7 @@ def mask(value: str | None) -> str:
     """Show first 6 chars only — enough to confirm the right key loaded, never exposes the secret."""
     if not value:
         return "NOT SET"
-    return value[:6] + "..." + f" ({len(value)} chars)"
+    return value[:15] + "..." + f" ({len(value)} chars)"
 
 
 # ── Step 2: validate, then build options ──────────────────────────────────────
@@ -50,8 +50,9 @@ elif PROVIDER == "bedrock":
     print(f"AWS_SECRET_ACCESS_KEY : {mask(AWS_SECRET_ACCESS_KEY)}")
     print(f"AWS_REGION            : {AWS_REGION}")
 
+    # Claude Sonnet 4.6 on Bedrock
     options = ClaudeAgentOptions(
-        model="anthropic.claude-3-5-sonnet-20241022-v2:0",
+        model="us.anthropic.claude-sonnet-4-6",
         env={
             "CLAUDE_CODE_USE_BEDROCK": "1",
             "AWS_ACCESS_KEY_ID":     AWS_ACCESS_KEY_ID,
@@ -68,7 +69,7 @@ else:
 async def main():
     print(f"Provider: {PROVIDER}")
 
-    async for message in query(prompt="What is Ai", options=options):
+    async for message in query(prompt="2 + 5", options=options):
         if isinstance(message, ResultMessage):
             print(f"Answer : {message.result}")
             print(f"Cost   : ${message.total_cost_usd:.4f}")
