@@ -191,13 +191,29 @@ Pay special attention to:
 Return your findings as JSON with: syntax_valid, pyspark_correct, dependencies_resolved, issues array, todos_found count."""
 
     result = ValidationResult(file_path=str(file_path), syntax_valid=True)
+    collected_text: list[str] = []
 
     try:
         async for message in query(prompt=prompt, options=options):
-            if isinstance(message, ResultMessage):
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if isinstance(block, TextBlock):
+                        collected_text.append(block.text)
+
+            elif isinstance(message, ResultMessage):
                 result.cost_usd = message.total_cost_usd
-                result_text = message.result or ""
-                review_data = _extract_json(result_text)
+
+                # Try extracting from assistant text first
+                review_data = None
+                for text_source in [
+                    collected_text[-1] if collected_text else "",
+                    "\n".join(collected_text),
+                    message.result or "",
+                ]:
+                    if text_source:
+                        review_data = _extract_json(text_source)
+                        if review_data:
+                            break
 
                 if review_data:
                     result.pyspark_correct = review_data.get("pyspark_correct", True)

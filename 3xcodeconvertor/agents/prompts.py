@@ -83,8 +83,41 @@ def build_discovery_prompt(knowledge: dict[str, str]) -> str:
 ## REFERENCE: Known Limitations (flag these early)
 {limitations}
 
-## OUTPUT FORMAT
-Return ONLY valid JSON matching the structured output schema. No markdown, no explanation."""
+## OUTPUT FORMAT — CRITICAL
+
+Your FINAL message MUST be a single JSON object and NOTHING ELSE. No markdown, no tables, no explanation before or after. Just raw JSON.
+
+Follow this structure EXACTLY:
+{{
+  "file_path": "input/example.sql",
+  "total_lines": 500,
+  "dialect": "tsql",
+  "file_complexity": "Standard script",
+  "file_complexity_score": 4.5,
+  "objects": [
+    {{
+      "name": "usp_Example",
+      "type": "procedure",
+      "start_line": 10,
+      "end_line": 100,
+      "line_count": 91,
+      "parameters": [{{"name": "@Param1", "data_type": "INT", "direction": "IN", "default_value": null}}],
+      "references": ["vw_OtherView"],
+      "temp_tables_created": ["#Staging"],
+      "temp_tables_used": [],
+      "has_cursor": false,
+      "has_dynamic_sql": false,
+      "has_transaction": true,
+      "window_function_count": 2,
+      "complexity_score": 4.5,
+      "complexity_level": "Moderate",
+      "known_limitations": [],
+      "constructs_used": ["CTE", "LEFT JOIN", "ROW_NUMBER"]
+    }}
+  ]
+}}
+
+RESPOND WITH ONLY THE JSON OBJECT. NO OTHER TEXT BEFORE OR AFTER."""
 
 
 # ── Phase 2: Planning Prompt ──────────────────────────────────────────────────
@@ -152,8 +185,35 @@ def build_planning_prompt(knowledge: dict[str, str]) -> str:
 ### PySpark Output Style Guide
 {idioms}
 
-## OUTPUT FORMAT
-Return ONLY valid JSON matching the structured output schema. No markdown, no explanation."""
+## OUTPUT FORMAT — CRITICAL
+
+Your FINAL message MUST be a single JSON object and NOTHING ELSE. No markdown, no tables, no explanation.
+
+Follow this structure:
+{{
+  "total_objects": 8,
+  "conversion_levels": [
+    {{"level": 0, "description": "No dependencies", "objects": ["vw_Example"], "strategy": "Parallel conversion"}}
+  ],
+  "dependency_edges": [
+    {{"source": "usp_A", "target": "usp_B", "relationship": "calls"}}
+  ],
+  "object_plans": {{
+    "usp_Example": {{
+      "conversion_order": 1,
+      "complexity": "Moderate (5.4)",
+      "estimated_tokens": 40000,
+      "dependencies_resolved": ["vw_Example"],
+      "dependency_signatures": "def example(spark) -> DataFrame",
+      "conversion_instructions": ["Line 10: ISNULL -> F.coalesce", "Line 20: DATEDIFF -> reverse args"],
+      "gotchas_relevant": ["#1 DATEDIFF reversed", "#2 Case-sensitive"],
+      "limitations_found": [],
+      "strategy": "Standard conversion"
+    }}
+  }}
+}}
+
+RESPOND WITH ONLY THE JSON OBJECT. NO OTHER TEXT."""
 
 
 # ── Phase 3: Conversion Prompt ────────────────────────────────────────────────

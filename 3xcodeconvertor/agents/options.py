@@ -8,7 +8,6 @@ from __future__ import annotations
 from claude_agent_sdk import ClaudeAgentOptions
 
 from config import ConverterConfig
-from models import INVENTORY_OUTPUT_SCHEMA, PLAN_OUTPUT_SCHEMA
 from tools import create_sql2spark_server
 from agents import prompts
 
@@ -36,7 +35,6 @@ class OptionsFactory:
             ],
             mcp_servers={"sql2spark": self.mcp_server},
             permission_mode="bypassPermissions",
-            output_format={"type": "json_schema", "schema": INVENTORY_OUTPUT_SCHEMA},
             max_turns=self.config.discovery_max_turns,
             max_budget_usd=self.config.discovery_budget_per_file,
         )
@@ -53,7 +51,6 @@ class OptionsFactory:
                 "Grep",
             ],
             permission_mode="bypassPermissions",
-            output_format={"type": "json_schema", "schema": PLAN_OUTPUT_SCHEMA},
             max_turns=self.config.planning_max_turns,
             max_budget_usd=self.config.planning_budget,
         )

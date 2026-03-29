@@ -96,15 +96,18 @@ Return the complete conversion plan as JSON."""
 
     cost_usd = 0.0
     plan_data: dict | None = None
+    collected_text: list[str] = []
 
     async for message in query(prompt=prompt, options=options):
         if isinstance(message, AssistantMessage):
-            if config.verbose:
-                for block in message.content:
-                    if isinstance(block, ToolUseBlock):
+            for block in message.content:
+                if isinstance(block, TextBlock):
+                    collected_text.append(block.text)
+                    if config.verbose:
+                        logger.debug("  Text: %s", block.text[:300])
+                elif isinstance(block, ToolUseBlock):
+                    if config.verbose:
                         logger.debug("  Tool: %s", block.name)
-                    elif isinstance(block, TextBlock):
-                        logger.debug("  Text: %s", block.text[:200])
 
         elif isinstance(message, ResultMessage):
             cost_usd = message.total_cost_usd
@@ -112,11 +115,20 @@ Return the complete conversion plan as JSON."""
                 "  Planning complete: $%.4f | %d turns | %dms",
                 cost_usd, message.num_turns, message.duration_ms,
             )
-            result_text = message.result or ""
-            plan_data = _extract_json(result_text)
+
+    for text_source in [
+        collected_text[-1] if collected_text else "",
+        "\n".join(collected_text),
+    ]:
+        if text_source:
+            plan_data = _extract_json(text_source)
+            if plan_data:
+                break
 
     if not plan_data:
         logger.error("  Failed to get conversion plan")
+        if collected_text:
+            logger.error("  Last text: %s", collected_text[-1][:500] if collected_text else "(empty)")
         return ConversionPlan(total_objects=total_objects), cost_usd
 
     try:

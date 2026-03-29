@@ -70,15 +70,18 @@ First, use the sql_prescan tool to get a quick scan of the file, then read the a
 
     cost_usd = 0.0
     inventory_data: dict | None = None
+    collected_text: list[str] = []  # Collect ALL text from assistant messages
 
     async for message in query(prompt=prompt, options=options):
         if isinstance(message, AssistantMessage):
-            if config.verbose:
-                for block in message.content:
-                    if isinstance(block, ToolUseBlock):
+            for block in message.content:
+                if isinstance(block, TextBlock):
+                    collected_text.append(block.text)
+                    if config.verbose:
+                        logger.debug("  Text: %s", block.text[:300])
+                elif isinstance(block, ToolUseBlock):
+                    if config.verbose:
                         logger.debug("  Tool: %s", block.name)
-                    elif isinstance(block, TextBlock):
-                        logger.debug("  Text: %s", block.text[:200])
 
         elif isinstance(message, ResultMessage):
             cost_usd = message.total_cost_usd
@@ -86,12 +89,27 @@ First, use the sql_prescan tool to get a quick scan of the file, then read the a
                 "  Discovery complete: $%.4f | %d turns | %dms",
                 cost_usd, message.num_turns, message.duration_ms,
             )
-            # Extract structured output
-            result_text = message.result or ""
-            inventory_data = _extract_json(result_text)
+
+    # Try extracting JSON from multiple sources (in priority order)
+    # 1. The last assistant text block (most likely to contain the final JSON)
+    # 2. All collected text concatenated
+    # 3. ResultMessage.result (sometimes empty)
+    for text_source in [
+        collected_text[-1] if collected_text else "",
+        "\n".join(collected_text),
+    ]:
+        if text_source:
+            inventory_data = _extract_json(text_source)
+            if inventory_data:
+                logger.debug("  Parsed inventory JSON from assistant text (%d chars)", len(text_source))
+                break
 
     if not inventory_data:
         logger.error("  Failed to get inventory for %s", file_path.name)
+        if collected_text:
+            # Log what we got so we can debug
+            last_text = collected_text[-1][:500] if collected_text else "(empty)"
+            logger.error("  Last assistant text: %s", last_text)
         return FileInventory(
             file_path=str(file_path),
             total_lines=line_count,
