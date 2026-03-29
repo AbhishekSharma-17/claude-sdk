@@ -1,13 +1,14 @@
 """sql2spark CLI — Convert SQL scripts to PySpark using Claude Agent SDK.
 
 Usage:
-    python converter.py                          # automated, all input/*.sql
-    python converter.py --interactive            # approve each conversion
-    python converter.py --budget 50.0            # cost cap (default: $50)
-    python converter.py --parallel 5             # concurrent conversions (default: 3)
-    python converter.py --dry-run                # Phase 1 + 2 only
-    python converter.py --verbose                # show all tool calls
-    python converter.py --output-dir ./custom    # custom output directory
+    uv run converter.py                          # full 5-phase pipeline
+    uv run converter.py --skip-autofix          # skip Phase 5 (still get action items)
+    uv run converter.py --interactive            # approve each conversion
+    uv run converter.py --budget 50.0            # cost cap (default: $50)
+    uv run converter.py --parallel 5             # concurrent conversions (default: 3)
+    uv run converter.py --dry-run                # Phase 1 + 2 only
+    uv run converter.py --verbose                # show all tool calls
+    uv run converter.py --output-dir ./custom    # custom output directory
 """
 
 from __future__ import annotations
@@ -50,6 +51,11 @@ def main() -> None:
         help="Run Phase 1 + 2 only (discovery + planning, no conversion)",
     )
     parser.add_argument(
+        "--skip-autofix",
+        action="store_true",
+        help="Skip Phase 5 auto-fix (issues are reported but not fixed)",
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
         default=None,
@@ -67,10 +73,16 @@ def main() -> None:
         choices=["opus", "sonnet", "haiku"],
         help="Model for conversion (default: opus)",
     )
+    parser.add_argument(
+        "--provider",
+        type=str,
+        default="anthropic",
+        choices=["anthropic", "bedrock"],
+        help="LLM provider: anthropic (default) or bedrock",
+    )
 
     args = parser.parse_args()
 
-    # Configure logging
     log_level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(
         level=log_level,
@@ -78,7 +90,6 @@ def main() -> None:
         datefmt="%H:%M:%S",
     )
 
-    # Build config
     workspace = Path(__file__).parent.resolve()
 
     config = ConverterConfig(
@@ -89,12 +100,13 @@ def main() -> None:
         total_budget_usd=args.budget,
         max_parallel_conversions=args.parallel,
         conversion_model=args.model,
+        skip_auto_fix=args.skip_autofix,
+        provider=args.provider,
     )
 
     if args.output_dir:
         config.output_dir = args.output_dir
 
-    # Validate
     if not config.input_path.exists():
         print(f"Error: Input directory not found: {config.input_path}")
         print(f"Create it and add .sql files: mkdir -p {config.input_path}")
@@ -105,7 +117,7 @@ def main() -> None:
         print(f"Error: No .sql files found in {config.input_path}")
         sys.exit(1)
 
-    # Print banner
+    # ── Banner ────────────────────────────────────────────────────────────
     print()
     print("=" * 60)
     print("  sql2spark — SQL to PySpark Converter")
@@ -120,10 +132,14 @@ def main() -> None:
     print(f"  Mode:       {'Interactive' if config.interactive else 'Automated'}")
     if config.dry_run:
         print(f"  Dry run:    Yes (Phase 1 + 2 only)")
+    if config.skip_auto_fix:
+        print(f"  Auto-fix:   Disabled (--skip-autofix)")
+    else:
+        print(f"  Auto-fix:   Enabled  (${config.auto_fix_budget_per_file:.2f}/file budget)")
     print("=" * 60)
     print()
 
-    # Run pipeline
+    # ── Run pipeline ──────────────────────────────────────────────────────
     try:
         report = asyncio.run(run_pipeline(config))
     except KeyboardInterrupt:
@@ -133,23 +149,47 @@ def main() -> None:
         print(f"Configuration error: {e}")
         sys.exit(1)
 
-    # Print final summary
+    # ── Final summary ─────────────────────────────────────────────────────
     print()
     print("=" * 60)
     print("  SUMMARY")
     print("=" * 60)
     print(f"  Objects converted: {report.converted}/{report.total_objects}")
     if report.failed:
-        print(f"  Failed: {report.failed}")
+        print(f"  Failed:            {report.failed}")
     if report.needs_review:
-        print(f"  Needs review: {report.needs_review}")
-    print(f"  Total cost: ${report.total_cost_usd:.4f}")
+        print(f"  Needs review:      {report.needs_review}")
+    print(f"  Total cost:        ${report.total_cost_usd:.4f}")
+
+    cb = report.cost_breakdown
+    print(
+        f"  Cost breakdown:    discovery ${cb.discovery:.4f} | "
+        f"planning ${cb.planning:.4f} | "
+        f"conversion ${cb.conversion:.4f} | "
+        f"validation ${cb.validation:.4f}"
+        + (f" | auto_fix ${cb.auto_fix:.4f}" if cb.auto_fix else "")
+    )
+
     if report.validation_issues:
         print(f"  Validation issues: {len(report.validation_issues)}")
-    print(f"  Report: {config.report_path}")
+
+    ai = report.developer_action_items
+    if ai.auto_fixed:
+        print(f"  Auto-fixed:        {len(ai.auto_fixed)} issue(s)")
+    if ai.requires_manual:
+        print(f"  Manual fixes:      {len(ai.requires_manual)} issue(s) — see developer_action_items.requires_manual")
+    if ai.infrastructure_setup:
+        print(f"  Infrastructure:    {len(ai.infrastructure_setup)} item(s) — see developer_action_items.infrastructure_setup")
+    if ai.recommended_review:
+        print(f"  Review items:      {len(ai.recommended_review)} — see developer_action_items.recommended_review")
+    if ai.todos_in_code:
+        print(f"  TODOs in code:     {len(ai.todos_in_code)}")
+    if ai.summary:
+        print(f"\n  Action summary: {ai.summary}")
+
+    print(f"\n  Report: {config.report_path}")
     print("=" * 60)
 
-    # Exit code based on results
     if report.failed > 0:
         sys.exit(1)
 

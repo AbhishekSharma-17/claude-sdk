@@ -23,8 +23,8 @@ class OptionsFactory:
     def discovery(self) -> ClaudeAgentOptions:
         """Phase 1: Discover SQL objects, detect dialect, score complexity."""
         return ClaudeAgentOptions(
-            model=self.config.conversion_model,
-            env={"ANTHROPIC_API_KEY": self.config.api_key},
+            model=self.config.resolve_model(self.config.conversion_model),
+            env=self.config.provider_env,
             cwd=str(self.config.workspace),
             system_prompt=prompts.build_discovery_prompt(self.knowledge),
             allowed_tools=[
@@ -42,8 +42,8 @@ class OptionsFactory:
     def planning(self) -> ClaudeAgentOptions:
         """Phase 2: Dependency analysis, conversion planning."""
         return ClaudeAgentOptions(
-            model=self.config.conversion_model,
-            env={"ANTHROPIC_API_KEY": self.config.api_key},
+            model=self.config.resolve_model(self.config.conversion_model),
+            env=self.config.provider_env,
             cwd=str(self.config.workspace),
             system_prompt=prompts.build_planning_prompt(self.knowledge),
             allowed_tools=[
@@ -58,8 +58,8 @@ class OptionsFactory:
     def conversion(self) -> ClaudeAgentOptions:
         """Phase 3: Convert individual SQL objects to PySpark."""
         return ClaudeAgentOptions(
-            model=self.config.conversion_model,
-            env={"ANTHROPIC_API_KEY": self.config.api_key},
+            model=self.config.resolve_model(self.config.conversion_model),
+            env=self.config.provider_env,
             cwd=str(self.config.workspace),
             system_prompt=prompts.CONVERSION_SYSTEM_PROMPT,
             allowed_tools=[
@@ -78,8 +78,8 @@ class OptionsFactory:
     def conversion_interactive(self) -> ClaudeAgentOptions:
         """Phase 3 interactive: Conversion with human-in-the-loop."""
         return ClaudeAgentOptions(
-            model=self.config.conversion_model,
-            env={"ANTHROPIC_API_KEY": self.config.api_key},
+            model=self.config.resolve_model(self.config.conversion_model),
+            env=self.config.provider_env,
             cwd=str(self.config.workspace),
             system_prompt=prompts.CONVERSION_SYSTEM_PROMPT,
             allowed_tools=[
@@ -99,8 +99,8 @@ class OptionsFactory:
     def validation(self) -> ClaudeAgentOptions:
         """Phase 4: Validate generated PySpark code."""
         return ClaudeAgentOptions(
-            model=self.config.validation_model,
-            env={"ANTHROPIC_API_KEY": self.config.api_key},
+            model=self.config.resolve_model(self.config.validation_model),
+            env=self.config.provider_env,
             cwd=str(self.config.workspace),
             system_prompt=prompts.build_validation_prompt(self.knowledge),
             allowed_tools=[
@@ -112,4 +112,17 @@ class OptionsFactory:
             permission_mode="bypassPermissions",
             max_turns=self.config.validation_max_turns,
             max_budget_usd=self.config.validation_budget_per_file,
+        )
+
+    def auto_fix(self) -> ClaudeAgentOptions:
+        """Phase 5: Auto-fix HIGH/ERROR issues in generated PySpark files."""
+        return ClaudeAgentOptions(
+            model=self.config.resolve_model(self.config.auto_fix_model),
+            env=self.config.provider_env,
+            cwd=str(self.config.workspace),
+            system_prompt=prompts.AUTO_FIX_SYSTEM_PROMPT,
+            allowed_tools=["Read", "Write"],
+            permission_mode="bypassPermissions",
+            max_turns=self.config.auto_fix_max_turns,
+            max_budget_usd=self.config.auto_fix_budget_per_file,
         )

@@ -82,6 +82,8 @@ class SQLObject(BaseModel):
             return v
         _MAP = {
             # Simple tier
+            "trivial": "Simple",
+            "very simple": "Simple",
             "low": "Simple",
             "simple": "Simple",
             "easy": "Simple",
@@ -413,10 +415,76 @@ class CostBreakdown(BaseModel):
     planning: float = 0.0
     conversion: float = 0.0
     validation: float = 0.0
+    auto_fix: float = 0.0
 
     @property
     def total(self) -> float:
-        return self.discovery + self.planning + self.conversion + self.validation
+        return self.discovery + self.planning + self.conversion + self.validation + self.auto_fix
+
+
+# ── Phase 5: Auto-Fix Models ──────────────────────────────────────────────────
+
+
+class AutoFixStatus(StrEnum):
+    FIXED    = "fixed"
+    PARTIAL  = "partial"
+    REVERTED = "reverted"  # ast.parse failed after fix — original restored
+    SKIPPED  = "skipped"   # no auto-fixable issues
+    FAILED   = "failed"    # Claude call or file I/O error
+
+
+class AutoFixResult(BaseModel):
+    file_path: str
+    status: AutoFixStatus = AutoFixStatus.SKIPPED
+    issues_attempted: int = 0
+    issues_fixed: int = 0
+    issues_remaining: list[ValidationIssue] = Field(default_factory=list)
+    was_reverted: bool = False
+    revert_reason: str = ""
+    cost_usd: float = 0.0
+
+
+# ── Developer Action Items ────────────────────────────────────────────────────
+
+
+class ActionItem(BaseModel):
+    category: str   # "auto_fixed" | "requires_manual" | "recommended_review" | "infrastructure"
+    priority: str   # "critical" | "high" | "medium" | "low"
+    file: str
+    description: str
+    how_to_fix: str
+    line: int | None = None
+
+    @field_validator("priority", mode="before")
+    @classmethod
+    def normalize_priority(cls, v: object) -> object:
+        """Normalize priority labels to canonical values."""
+        if not isinstance(v, str):
+            return v
+        _MAP = {
+            "critical": "critical", "error": "critical",
+            "high": "high",
+            "medium": "medium", "moderate": "medium", "warning": "medium",
+            "low": "low", "info": "low",
+        }
+        return _MAP.get(v.strip().lower(), v.strip().lower())
+
+
+class DeveloperActionItems(BaseModel):
+    auto_fixed: list[ActionItem] = Field(default_factory=list)
+    requires_manual: list[ActionItem] = Field(default_factory=list)
+    recommended_review: list[ActionItem] = Field(default_factory=list)
+    infrastructure_setup: list[ActionItem] = Field(default_factory=list)
+    todos_in_code: list[str] = Field(default_factory=list)
+    summary: str = ""
+
+    @property
+    def total_open_items(self) -> int:
+        return (
+            len(self.requires_manual)
+            + len(self.recommended_review)
+            + len(self.infrastructure_setup)
+        )
 
 
 class ConversionReport(BaseModel):
@@ -432,3 +500,5 @@ class ConversionReport(BaseModel):
     objects: list[ConversionResult] = Field(default_factory=list)
     validation_issues: list[ValidationIssue] = Field(default_factory=list)
     todos: list[str] = Field(default_factory=list)
+    auto_fix_results: list[AutoFixResult] = Field(default_factory=list)
+    developer_action_items: DeveloperActionItems = Field(default_factory=DeveloperActionItems)
