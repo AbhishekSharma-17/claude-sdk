@@ -161,7 +161,7 @@ async def run_pipeline(config: ConverterConfig) -> ConversionReport:
     output_files = sorted(config.output_path.glob("*.py"))
     validation_options = options_factory.validation()
 
-    validation_results = await validation.validate_all(
+    validation_results, dep_context_by_file = await validation.validate_all(
         output_files=output_files,
         options=validation_options,
         config=config,
@@ -193,6 +193,7 @@ async def run_pipeline(config: ConverterConfig) -> ConversionReport:
             validation_results=validation_results,
             options=auto_fix_options,
             config=config,
+            dep_context_by_file=dep_context_by_file,
         )
 
         for afr in auto_fix_results:

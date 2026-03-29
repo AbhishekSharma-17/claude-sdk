@@ -1,0 +1,372 @@
+{
+  "total_objects": 3,
+  "converted": 3,
+  "failed": 0,
+  "skipped": 0,
+  "needs_review": 0,
+  "total_cost_usd": 1.5670044,
+  "total_duration_ms": 353641,
+  "file_complexity": "Standard script",
+  "cost_breakdown": {
+    "discovery": 0.3058617,
+    "planning": 0.32039175,
+    "conversion": 0.59367225,
+    "validation": 0.3470787,
+    "auto_fix": 0.0
+  },
+  "objects": [
+    {
+      "object_name": "dbo.ufn_SplitCsvInt",
+      "status": "converted",
+      "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/ufn_split_csv_int.py",
+      "signature": "def ufn_split_csv_int(csv: str | None) -> list[int]",
+      "cost_usd": 0.08682285,
+      "turns_used": 5,
+      "duration_ms": 55211,
+      "session_id": "8c7731f3-4122-4ffd-94ef-8b208033230b",
+      "error": null
+    },
+    {
+      "object_name": "dbo.usp_AWLT_Converter_Log",
+      "status": "converted",
+      "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/usp_awlt_converter_log.py",
+      "signature": "def _step1_build_logger(",
+      "cost_usd": 0.1337718,
+      "turns_used": 5,
+      "duration_ms": 75919,
+      "session_id": "83e1b3d4-ed6e-4f3b-bbc2-ac38a1fa2f01",
+      "error": null
+    },
+    {
+      "object_name": "dbo.usp_AWLT_OneCSV_ConverterTest_1k",
+      "status": "converted",
+      "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/usp_awlt_one_csv_converter_test_1k.py",
+      "signature": "def _step1_build_customer_filter(params: PipelineParams) -> tuple[list[int], bool]",
+      "cost_usd": 0.3730776,
+      "turns_used": 5,
+      "duration_ms": 222511,
+      "session_id": "f9181e3e-8b55-418c-9656-7c91e0a677a4",
+      "error": null
+    }
+  ],
+  "validation_issues": [
+    {
+      "file": "ufn_split_csv_int.py",
+      "severity": "LOW",
+      "message": "Unused import: `TYPE_CHECKING` is imported from `typing` (line 21) but never referenced anywhere in the file. Remove it to keep imports clean.",
+      "line": 21
+    },
+    {
+      "file": "ufn_split_csv_int.py",
+      "severity": "LOW",
+      "message": "`split_csv_int_df()` accepts a `spark: SparkSession` parameter (line 102) that is never used inside the function body. The function operates entirely via the `df` argument and native F.* expressions. Either remove the parameter or document why it is reserved for future use.",
+      "line": 102
+    },
+    {
+      "file": "ufn_split_csv_int.py",
+      "severity": "LOW",
+      "message": "SparkSession (lines 190-194) is missing recommended AQE configs: `spark.sql.adaptive.enabled`, `spark.sql.adaptive.coalescePartitions.enabled`, `spark.sql.adaptive.skewJoin.enabled`. Not critical for this utility, but required by the style guide for all SparkSession builders.",
+      "line": 190
+    },
+    {
+      "file": "ufn_split_csv_int.py",
+      "severity": "LOW",
+      "message": "SparkSession is missing `.config(\"spark.sql.decimalOperations.allowPrecisionLoss\", \"false\")`. Not exploitable here (no decimal arithmetic), but required by the style guide checklist for every SparkSession builder.",
+      "line": 190
+    },
+    {
+      "file": "ufn_split_csv_int.py",
+      "severity": "LOW",
+      "message": "`run_pipeline()` uses an untyped `params: dict` (line 149) instead of a typed `PipelineParams` dataclass as required by the style guide. This loses IDE autocompletion and type-safety for callers.",
+      "line": 149
+    },
+    {
+      "file": "ufn_split_csv_int.py",
+      "severity": "LOW",
+      "message": "File is missing a module-level docstring. Per the style guide, every output file must open with a `\"\"\"PySpark conversion of ...\"\"\"` docstring (Source, Target, SQL construct mapping, Usage). The file currently starts with `from __future__ import annotations` followed only by a block comment.",
+      "line": 1
+    },
+    {
+      "file": "ufn_split_csv_int.py",
+      "severity": "INFO",
+      "message": "Docstring for `split_csv_int_df()` states 'DataFrame with all original columns replaced by output_col' (line 127), but the implementation uses `withColumn` which KEEPS all original columns and adds/replaces only the named column. The wording is misleading.",
+      "line": 127
+    },
+    {
+      "file": "usp_awlt_converter_log.py",
+      "severity": "HIGH",
+      "message": "Runtime dependency unresolved: writes to Delta table 'dbo.AWLT_Converter_RunLog' via saveAsTable() (line 138), but the table definition file was not found. If this table does not already exist in the Spark metastore, every log_step() call will raise an AnalysisException at runtime. No CREATE TABLE / DDL fallback is present in this file.",
+      "line": 138
+    },
+    {
+      "file": "usp_awlt_converter_log.py",
+      "severity": "MEDIUM",
+      "message": "SparkSession built without recommended configs: missing spark.sql.decimalOperations.allowPrecisionLoss=false, spark.sql.adaptive.enabled=true, spark.sql.adaptive.coalescePartitions.enabled=true, spark.sql.adaptive.skewJoin.enabled=true. Required by the style guide for all SparkSession instantiations.",
+      "line": 266
+    },
+    {
+      "file": "usp_awlt_converter_log.py",
+      "severity": "LOW",
+      "message": "F (pyspark.sql.functions) is imported but never used within this file. The inline comment '# noqa: F401 (available for callers)' is misleading — Python modules do not re-export names simply by importing them unless __all__ is defined or callers do 'from module import F'. This is a dead import that may confuse maintainers.",
+      "line": 10
+    },
+    {
+      "file": "usp_awlt_converter_log.py",
+      "severity": "LOW",
+      "message": "log_step() always sets StartedUtc = datetime.now(timezone.utc) and, when complete=True, sets CompletedUtc = that same instant. This means CompletedUtc will always equal StartedUtc (zero duration) for completed steps. The SQL original used a separate SYSUTCDATETIME() call per column, so durations were at least microseconds apart. Consider capturing the two timestamps independently if elapsed time is ever queried.",
+      "line": 114
+    },
+    {
+      "file": "usp_awlt_one_csv_converter_test_1k.py",
+      "severity": "warning",
+      "message": ".collect() found — may cause OOM on large datasets",
+      "line": 813
+    },
+    {
+      "file": "usp_awlt_one_csv_converter_test_1k.py",
+      "severity": "warning",
+      "message": ".collect() found — may cause OOM on large datasets",
+      "line": 889
+    },
+    {
+      "file": "usp_awlt_one_csv_converter_test_1k.py",
+      "severity": "warning",
+      "message": ".collect() found — may cause OOM on large datasets",
+      "line": 895
+    },
+    {
+      "file": "usp_awlt_one_csv_converter_test_1k.py",
+      "severity": "warning",
+      "message": ".collect() found — may cause OOM on large datasets",
+      "line": 1085
+    },
+    {
+      "file": "usp_awlt_one_csv_converter_test_1k.py",
+      "severity": "HIGH",
+      "message": "orders_df is unpersisted at line 1120 but then passed to _step9a_build_payload() at line 1134. Spark will silently recompute the full orders lineage from scratch (scan + join + filter), causing a major unintended performance regression. Fix: move orders_df.unpersist() to AFTER _step9a_build_payload() completes.",
+      "line": 1120
+    },
+    {
+      "file": "usp_awlt_one_csv_converter_test_1k.py",
+      "severity": "HIGH",
+      "message": "ConverterLogger stub is instantiated with zero arguments (line 1065: ConverterLogger()), but the real RunLogger in usp_awlt_converter_log.py requires __init__(self, spark, run_id, proc_name). Swapping in the real import will immediately raise TypeError. The instantiation call and the import alias must both be updated together.",
+      "line": 1065
+    },
+    {
+      "file": "usp_awlt_one_csv_converter_test_1k.py",
+      "severity": "MEDIUM",
+      "message": "QC_PREDICATE_MAP is an empty dict (lines 776-781). Every QC rule evaluated in _step10_evaluate_qc() falls into the else branch (line 829: failed = False), silently marking all QC checks as passed regardless of actual data state. QC_FailCount_Severity2/3 will always be 0 in the final result.",
+      "line": 776
+    },
+    {
+      "file": "usp_awlt_one_csv_converter_test_1k.py",
+      "severity": "MEDIUM",
+      "message": "Dead code at line 1143: `_step10_evaluate_qc(spark, facts_df if False else rfm_df)`. The condition `if False` is always False so rfm_df is always used, but facts_df (already unpersisted at line 1126) is referenced in the expression, making intent unclear and masking a potential bug if the condition is ever changed to True.",
+      "line": 1143
+    },
+    {
+      "file": "usp_awlt_one_csv_converter_test_1k.py",
+      "severity": "MEDIUM",
+      "message": "spark.table(\"dbo.AWLT_QC_Definition\") at line 810 references an object with no converted output file per the dependency manifest. This will raise AnalysisException at runtime unless the table is pre-registered in the Spark catalog.",
+      "line": 810
+    },
+    {
+      "file": "usp_awlt_one_csv_converter_test_1k.py",
+      "severity": "LOW",
+      "message": "SparkSession in main() (lines 1229-1233) is built without AQE or decimalOperations configs. These are applied later via spark.conf.set() inside run_pipeline(). Any caller that obtains the SparkSession before run_pipeline() executes will run without decimal precision protection until run_pipeline() is reached.",
+      "line": 1229
+    }
+  ],
+  "todos": [],
+  "auto_fix_results": [],
+  "developer_action_items": {
+    "auto_fixed": [],
+    "requires_manual": [
+      {
+        "category": "requires_manual",
+        "priority": "high",
+        "file": "usp_awlt_converter_log.py",
+        "description": "Runtime dependency unresolved: writes to Delta table 'dbo.AWLT_Converter_RunLog' via saveAsTable() (line 138), but the table definition file was not found. If this table does not already exist in the Spark metastore, every log_step() call will raise an AnalysisException at runtime. No CREATE TABLE / DDL fallback is present in this file.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 138
+      },
+      {
+        "category": "requires_manual",
+        "priority": "high",
+        "file": "usp_awlt_one_csv_converter_test_1k.py",
+        "description": "orders_df is unpersisted at line 1120 but then passed to _step9a_build_payload() at line 1134. Spark will silently recompute the full orders lineage from scratch (scan + join + filter), causing a major unintended performance regression. Fix: move orders_df.unpersist() to AFTER _step9a_build_payload() completes.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 1120
+      },
+      {
+        "category": "requires_manual",
+        "priority": "high",
+        "file": "usp_awlt_one_csv_converter_test_1k.py",
+        "description": "ConverterLogger stub is instantiated with zero arguments (line 1065: ConverterLogger()), but the real RunLogger in usp_awlt_converter_log.py requires __init__(self, spark, run_id, proc_name). Swapping in the real import will immediately raise TypeError. The instantiation call and the import alias must both be updated together.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 1065
+      }
+    ],
+    "recommended_review": [
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "ufn_split_csv_int.py",
+        "description": "Unused import: `TYPE_CHECKING` is imported from `typing` (line 21) but never referenced anywhere in the file. Remove it to keep imports clean.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 21
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "ufn_split_csv_int.py",
+        "description": "`split_csv_int_df()` accepts a `spark: SparkSession` parameter (line 102) that is never used inside the function body. The function operates entirely via the `df` argument and native F.* expressions. Either remove the parameter or document why it is reserved for future use.",
+        "how_to_fix": "Add `.config('spark.sql.decimalOperations.allowPrecisionLoss', False)` to the SparkSession builder chain before `.getOrCreate()`.",
+        "line": 102
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "ufn_split_csv_int.py",
+        "description": "SparkSession (lines 190-194) is missing recommended AQE configs: `spark.sql.adaptive.enabled`, `spark.sql.adaptive.coalescePartitions.enabled`, `spark.sql.adaptive.skewJoin.enabled`. Not critical for this utility, but required by the style guide for all SparkSession builders.",
+        "how_to_fix": "Add `.config('spark.sql.decimalOperations.allowPrecisionLoss', False)` to the SparkSession builder chain before `.getOrCreate()`.",
+        "line": 190
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "ufn_split_csv_int.py",
+        "description": "SparkSession is missing `.config(\"spark.sql.decimalOperations.allowPrecisionLoss\", \"false\")`. Not exploitable here (no decimal arithmetic), but required by the style guide checklist for every SparkSession builder.",
+        "how_to_fix": "Add `.config('spark.sql.decimalOperations.allowPrecisionLoss', False)` to the SparkSession builder chain before `.getOrCreate()`.",
+        "line": 190
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "ufn_split_csv_int.py",
+        "description": "`run_pipeline()` uses an untyped `params: dict` (line 149) instead of a typed `PipelineParams` dataclass as required by the style guide. This loses IDE autocompletion and type-safety for callers.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 149
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "ufn_split_csv_int.py",
+        "description": "File is missing a module-level docstring. Per the style guide, every output file must open with a `\"\"\"PySpark conversion of ...\"\"\"` docstring (Source, Target, SQL construct mapping, Usage). The file currently starts with `from __future__ import annotations` followed only by a block comment.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 1
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "ufn_split_csv_int.py",
+        "description": "Docstring for `split_csv_int_df()` states 'DataFrame with all original columns replaced by output_col' (line 127), but the implementation uses `withColumn` which KEEPS all original columns and adds/replaces only the named column. The wording is misleading.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 127
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "usp_awlt_converter_log.py",
+        "description": "SparkSession built without recommended configs: missing spark.sql.decimalOperations.allowPrecisionLoss=false, spark.sql.adaptive.enabled=true, spark.sql.adaptive.coalescePartitions.enabled=true, spark.sql.adaptive.skewJoin.enabled=true. Required by the style guide for all SparkSession instantiations.",
+        "how_to_fix": "Add `.config('spark.sql.decimalOperations.allowPrecisionLoss', False)` to the SparkSession builder chain before `.getOrCreate()`.",
+        "line": 266
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "usp_awlt_converter_log.py",
+        "description": "F (pyspark.sql.functions) is imported but never used within this file. The inline comment '# noqa: F401 (available for callers)' is misleading — Python modules do not re-export names simply by importing them unless __all__ is defined or callers do 'from module import F'. This is a dead import that may confuse maintainers.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 10
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "usp_awlt_converter_log.py",
+        "description": "log_step() always sets StartedUtc = datetime.now(timezone.utc) and, when complete=True, sets CompletedUtc = that same instant. This means CompletedUtc will always equal StartedUtc (zero duration) for completed steps. The SQL original used a separate SYSUTCDATETIME() call per column, so durations were at least microseconds apart. Consider capturing the two timestamps independently if elapsed time is ever queried.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 114
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "usp_awlt_one_csv_converter_test_1k.py",
+        "description": ".collect() found — may cause OOM on large datasets",
+        "how_to_fix": "Avoid `.collect()` on large DataFrames. For single values use `.first()[col_name]` or `.agg(F.max(...)).collect()[0][0]`. For small reference data use `.limit(n).collect()`.",
+        "line": 813
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "usp_awlt_one_csv_converter_test_1k.py",
+        "description": ".collect() found — may cause OOM on large datasets",
+        "how_to_fix": "Avoid `.collect()` on large DataFrames. For single values use `.first()[col_name]` or `.agg(F.max(...)).collect()[0][0]`. For small reference data use `.limit(n).collect()`.",
+        "line": 889
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "usp_awlt_one_csv_converter_test_1k.py",
+        "description": ".collect() found — may cause OOM on large datasets",
+        "how_to_fix": "Avoid `.collect()` on large DataFrames. For single values use `.first()[col_name]` or `.agg(F.max(...)).collect()[0][0]`. For small reference data use `.limit(n).collect()`.",
+        "line": 895
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "usp_awlt_one_csv_converter_test_1k.py",
+        "description": ".collect() found — may cause OOM on large datasets",
+        "how_to_fix": "Avoid `.collect()` on large DataFrames. For single values use `.first()[col_name]` or `.agg(F.max(...)).collect()[0][0]`. For small reference data use `.limit(n).collect()`.",
+        "line": 1085
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "usp_awlt_one_csv_converter_test_1k.py",
+        "description": "QC_PREDICATE_MAP is an empty dict (lines 776-781). Every QC rule evaluated in _step10_evaluate_qc() falls into the else branch (line 829: failed = False), silently marking all QC checks as passed regardless of actual data state. QC_FailCount_Severity2/3 will always be 0 in the final result.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 776
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "usp_awlt_one_csv_converter_test_1k.py",
+        "description": "Dead code at line 1143: `_step10_evaluate_qc(spark, facts_df if False else rfm_df)`. The condition `if False` is always False so rfm_df is always used, but facts_df (already unpersisted at line 1126) is referenced in the expression, making intent unclear and masking a potential bug if the condition is ever changed to True.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 1143
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "usp_awlt_one_csv_converter_test_1k.py",
+        "description": "spark.table(\"dbo.AWLT_QC_Definition\") at line 810 references an object with no converted output file per the dependency manifest. This will raise AnalysisException at runtime unless the table is pre-registered in the Spark catalog.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 810
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "usp_awlt_one_csv_converter_test_1k.py",
+        "description": "SparkSession in main() (lines 1229-1233) is built without AQE or decimalOperations configs. These are applied later via spark.conf.set() inside run_pipeline(). Any caller that obtains the SparkSession before run_pipeline() executes will run without decimal precision protection until run_pipeline() is reached.",
+        "how_to_fix": "Add `.config('spark.sql.decimalOperations.allowPrecisionLoss', False)` to the SparkSession builder chain before `.getOrCreate()`.",
+        "line": 1229
+      }
+    ],
+    "infrastructure_setup": [],
+    "todos_in_code": [
+      "usp_awlt_one_csv_converter_test_1k.py: # 1. TODO: Dynamic SQL via sp_executesql at SQL lines 931-934.",
+      "usp_awlt_one_csv_converter_test_1k.py: # 2. TODO: Cursor at SQL lines 918-943 rewritten as a vectorised Python loop",
+      "usp_awlt_one_csv_converter_test_1k.py: # 6. TODO: Transaction semantics BEGIN TRY / THROW (lines 1008-1014) —",
+      "usp_awlt_one_csv_converter_test_1k.py: # TODO: Build this predicate map by inspecting every SqlPredicate row in",
+      "usp_awlt_one_csv_converter_test_1k.py: # TODO: populate from dbo.AWLT_QC_Definition SqlPredicate inspection",
+      "usp_awlt_one_csv_converter_test_1k.py: - TODO: Dynamic SQL via sp_executesql at SQL lines 931-934 cannot be",
+      "usp_awlt_one_csv_converter_test_1k.py: - TODO: Cursor at SQL lines 918-943 rewritten as a vectorised Python",
+      "usp_awlt_one_csv_converter_test_1k.py: # TODO: predicate not yet mapped — treat as unknown (not failed)",
+      "usp_awlt_one_csv_converter_test_1k.py: TODO: Transaction semantics (BEGIN TRY / THROW, SQL lines 1008-1014) use",
+      "usp_awlt_one_csv_converter_test_1k.py: # TODO: No mid-pipeline rollback available — consider Delta Lake for ACID.",
+      "usp_awlt_one_csv_converter_test_1k.py: # is a superset.  TODO: revisit if QC predicates need facts_df columns."
+    ],
+    "summary": "3 issues require manual code changes (cursor rewrites, dynamic SQL, MERGE logic) — see requires_manual. 18 items flagged for recommended review (null ordering, case sensitivity, OOM risk) — see recommended_review. 11 TODO comments remain in generated files marking patterns that need manual attention."
+  }
+}

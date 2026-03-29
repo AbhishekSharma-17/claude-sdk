@@ -70,6 +70,10 @@ _AUTO_FIXABLE_PATTERNS: tuple[str, ...] = (
 # Infrastructure items — require Spark cluster / Delta Lake / storage changes
 _INFRASTRUCTURE_PATTERNS: tuple[str, ...] = (
     "delta lake",
+    "delta table",
+    "saveastable",
+    "table definition file was not found",
+    "pre-registered in the spark catalog",
     "cdf",
     "change data feed",
     "change data capture",
@@ -203,6 +207,7 @@ async def fix_all(
     validation_results: list[ValidationResult],
     options: ClaudeAgentOptions,
     config: ConverterConfig,
+    dep_context_by_file: dict[str, str] | None = None,
 ) -> list[AutoFixResult]:
     """Run auto-fix on all files that have HIGH/ERROR auto-fixable issues.
 
@@ -213,6 +218,10 @@ async def fix_all(
         validation_results: Results from Phase 4.
         options: ClaudeAgentOptions for the auto-fix agent (Sonnet).
         config: Converter configuration.
+        dep_context_by_file: Optional dict mapping file basename → dependency
+            signatures string (same context Phase 4 used). Injected into the
+            fix prompt so Claude can resolve cross-file references (e.g.
+            matching constructor signatures between caller and callee).
 
     Returns:
         List of AutoFixResult, one per file that had fixable issues.
@@ -220,6 +229,7 @@ async def fix_all(
     results: list[AutoFixResult] = []
     total_fix_cost = 0.0
     budget_cap = config.auto_fix_budget_per_file * max(len(validation_results), 1) * 2
+    dep_ctx = dep_context_by_file or {}
 
     for vr in validation_results:
         fixable = [i for i in vr.issues if _classify_issue(i) == "auto_fix"]
@@ -233,11 +243,15 @@ async def fix_all(
             )
             break
 
+        file_basename = Path(vr.file_path).name
+        file_dep_ctx = dep_ctx.get(file_basename, "")
+
         logger.info(
-            "Auto-fixing: %s  (%d fixable issues)",
-            Path(vr.file_path).name, len(fixable),
+            "Auto-fixing: %s  (%d fixable issues%s)",
+            file_basename, len(fixable),
+            f", +dep-ctx {len(file_dep_ctx)} chars" if file_dep_ctx else "",
         )
-        fix_result = await _fix_file(vr, fixable, options, config)
+        fix_result = await _fix_file(vr, fixable, options, config, file_dep_ctx)
         results.append(fix_result)
         total_fix_cost += fix_result.cost_usd
 
@@ -322,6 +336,7 @@ async def _fix_file(
     fixable_issues: list[ValidationIssue],
     options: ClaudeAgentOptions,
     config: ConverterConfig,
+    dep_context: str = "",
 ) -> AutoFixResult:
     """Attempt to auto-fix a single file.
 
@@ -339,7 +354,7 @@ async def _fix_file(
         result.issues_remaining = fixable_issues
         return result
 
-    prompt = _build_fix_prompt(file_path, original_content, fixable_issues)
+    prompt = _build_fix_prompt(file_path, original_content, fixable_issues, dep_context)
     collected_text: list[str] = []
 
     try:
@@ -421,6 +436,15 @@ def _classify_issue(issue: ValidationIssue) -> str:
     """Classify a ValidationIssue into action category.
 
     Returns one of: "auto_fix", "infrastructure", "manual", "review".
+
+    Strategy: for HIGH/ERROR issues, we **try auto-fix by default** unless
+    the issue explicitly matches a known manual or infrastructure pattern.
+    The safety net (ast.parse + truncation guard) protects against bad fixes.
+
+    This is intentionally optimistic — the validator already provided specific
+    fix instructions (line numbers, exact changes), so Claude can usually apply
+    them. Only issues requiring business logic understanding (cursor rewrites,
+    dynamic SQL predicate translation, MERGE semantics) are excluded.
     """
     msg = issue.message.lower()
     severity_upper = issue.severity.upper()
@@ -430,15 +454,15 @@ def _classify_issue(issue: ValidationIssue) -> str:
         if pattern in msg:
             return "infrastructure"
 
-    # For ERROR/HIGH: check if auto-fixable, else manual
+    # For ERROR/HIGH: blacklist-based → only skip if known-manual pattern
     if severity_upper in ("ERROR", "HIGH"):
-        for pattern in _AUTO_FIXABLE_PATTERNS:
-            if pattern in msg:
-                return "auto_fix"
         for pattern in _MANUAL_PATTERNS:
             if pattern in msg:
                 return "manual"
-        return "manual"  # unknown HIGH/ERROR → escalate to manual
+        # Everything else: try auto-fix. The validator gave specific fix
+        # instructions (line numbers, exact changes). Claude can apply them.
+        # Safety net: ast.parse() + truncation guard will revert bad fixes.
+        return "auto_fix"
 
     # MEDIUM/WARNING/LOW/INFO → recommend review
     return "review"
@@ -528,6 +552,7 @@ def _build_fix_prompt(
     file_path: Path,
     content: str,
     issues: list[ValidationIssue],
+    dep_context: str = "",
 ) -> str:
     """Build the targeted fix prompt for a single file."""
     issues_block = "\n".join(
@@ -536,27 +561,36 @@ def _build_fix_prompt(
         for i, issue in enumerate(issues)
     )
 
-    return f"""Fix the following HIGH/ERROR severity issues in this PySpark file.
+    dep_section = ""
+    if dep_context:
+        dep_section = f"""
+## DEPENDENCY FILES (real signatures — use these to fix cross-file mismatches)
+{dep_context}
+"""
+
+    return f"""Fix the following issues in this PySpark file. The validator has already identified each issue with its exact line number and a description of what's wrong.
 
 ## FILE PATH
 {file_path.resolve()}
 
 ## ISSUES TO FIX (apply ALL of them)
 {issues_block}
-
+{dep_section}
 ## CURRENT FILE CONTENT
 ```python
 {content}
 ```
 
 ## INSTRUCTIONS
-- Fix ONLY the numbered issues above. Do not change anything else.
+- Fix ONLY the numbered issues above. Do not refactor or change anything else.
+- For cross-file issues (signature mismatches, wrong constructor args), refer to the DEPENDENCY FILES section above for the correct signatures.
+- For ordering issues ("X called after Y is released"), move the relevant lines to the correct position.
 - Keep all TODO comments, docstrings, and blank lines exactly as they are.
 - If you cannot safely fix an issue (ambiguous business logic, requires infrastructure), skip it and include it in "fixes_skipped".
-- Return the COMPLETE fixed file — no truncation, no ellipsis.
+- Return the COMPLETE fixed file — no truncation, no ellipsis, every line from the original must be present.
 
 Respond with exactly two blocks:
-1. A ```json block: {{"fixes_applied": ["..."], "fixes_skipped": ["..."]}}
+1. A ```json block: {{"fixes_applied": ["issue 1 description", "issue 2 description"], "fixes_skipped": ["issue N description (reason)"]}}
 2. A ```python block: the COMPLETE fixed file content"""
 
 

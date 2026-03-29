@@ -1,0 +1,20 @@
+{
+  "dbo.ufn_SplitCsvInt": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/ufn_split_csv_int.py",
+    "cost_usd": 0.08682285,
+    "session_id": "8c7731f3-4122-4ffd-94ef-8b208033230b"
+  },
+  "dbo.usp_AWLT_Converter_Log": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/usp_awlt_converter_log.py",
+    "cost_usd": 0.1337718,
+    "session_id": "83e1b3d4-ed6e-4f3b-bbc2-ac38a1fa2f01"
+  },
+  "dbo.usp_AWLT_OneCSV_ConverterTest_1k": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/usp_awlt_one_csv_converter_test_1k.py",
+    "cost_usd": 0.3730776,
+    "session_id": "f9181e3e-8b55-418c-9656-7c91e0a677a4"
+  }
+}

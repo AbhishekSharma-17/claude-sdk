@@ -49,7 +49,7 @@ async def validate_all(
     config: ConverterConfig,
     plan: ConversionPlan | None = None,
     inventories: list[FileInventory] | None = None,
-) -> list[ValidationResult]:
+) -> tuple[list[ValidationResult], dict[str, str]]:
     """Validate all generated PySpark files.
 
     Step 1: Local ast.parse() — free, catches syntax errors and common patterns.
@@ -65,9 +65,12 @@ async def validate_all(
         inventories: Optional list of FileInventory — reserved for future use.
 
     Returns:
-        List of ValidationResult, one per file.
+        Tuple of:
+        - List of ValidationResult, one per file.
+        - Dict mapping file basename → dependency context string (reused by Phase 5).
     """
     results: list[ValidationResult] = []
+    dep_context_by_file: dict[str, str] = {}
 
     # Build object-name → output-file lookup for dependency injection
     obj_to_file = _build_object_file_map(output_files) if plan else {}
@@ -91,6 +94,7 @@ async def validate_all(
         if plan:
             dep_context = _build_dep_context(file_path, plan, obj_to_file)
             if dep_context:
+                dep_context_by_file[file_path.name] = dep_context
                 logger.info(
                     "  Injecting dependency context for %s (%d chars)",
                     file_path.name, len(dep_context),
@@ -111,7 +115,7 @@ async def validate_all(
         )
         results.append(merged)
 
-    return results
+    return results, dep_context_by_file
 
 
 def generate_report(
