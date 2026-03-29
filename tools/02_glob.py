@@ -1,10 +1,13 @@
 """
-Tool 1: Read
+Tool 2: Glob
 =============
-Lets Claude read a file and use its content to answer.
+Lets Claude find files by pattern (like a file search).
 
-allowed_tools=["Read"] means Claude CAN read files, auto-approved.
-Without it, Claude would have to ask permission first.
+Pattern syntax:
+  *.py          → all .py files in current dir only
+  **/*.py       → all .py files in all subdirectories (recursive)
+  sample_data/* → all files inside sample_data/
+  **/*config*   → any file with "config" in the name, anywhere
 """
 
 import asyncio
@@ -15,30 +18,31 @@ from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage, Assistant
 load_dotenv()
 
 options = ClaudeAgentOptions(
-    model="sonnet",
+    model="haiku",
     env={"ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY")},
-
-    # Give Claude permission to read files
-    allowed_tools=["Read"],
-
+    allowed_tools=["Glob", "Read"],
     permission_mode="bypassPermissions",
     max_turns=5,
 )
 
 
 async def main():
-    print("=== Tool: Read ===\n")
-    print("Asking Claude to read files\n")
+    print("=== Tool: Glob ===\n")
 
     async for message in query(
-        prompt="Read the file sample_data/3XDE_2X.png and explain the image.",
+        prompt="""
+        Look inside the sample_data/ directory and:
+        1. Find all files
+        2. Group them by file type (extension)
+        3. Tell me how many files of each type exist
+        4. Read utils file and explain the content
+        """,
         options=options,
     ):
         if isinstance(message, AssistantMessage):
             for block in message.content:
                 if isinstance(block, ToolUseBlock):
-                    # Shows Claude actually calling the Read tool
-                    print(f"[Claude called] Read({block.input})")
+                    print(f"[Claude called] Glob({block.input})")
                 elif isinstance(block, TextBlock):
                     print(f"[Claude says]\n{block.text}")
 
