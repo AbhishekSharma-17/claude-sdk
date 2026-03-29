@@ -1,0 +1,16 @@
+{
+  "app_name": "MyAgent",
+  "version": "1.0.0",
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "mydb"
+  },
+  "features": {
+    "logging": true,
+    "caching": false,
+    "debug_mode": true
+  },
+  "allowed_models": ["sonnet", "haiku", "opus"],
+  "max_retries": 3
+}
