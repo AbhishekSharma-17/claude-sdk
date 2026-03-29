@@ -1,0 +1,158 @@
+"""sql2spark CLI — Convert SQL scripts to PySpark using Claude Agent SDK.
+
+Usage:
+    python converter.py                          # automated, all input/*.sql
+    python converter.py --interactive            # approve each conversion
+    python converter.py --budget 50.0            # cost cap (default: $50)
+    python converter.py --parallel 5             # concurrent conversions (default: 3)
+    python converter.py --dry-run                # Phase 1 + 2 only
+    python converter.py --verbose                # show all tool calls
+    python converter.py --output-dir ./custom    # custom output directory
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import logging
+import sys
+from pathlib import Path
+
+from config import ConverterConfig
+from orchestrator import run_pipeline
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="sql2spark",
+        description="Convert SQL scripts to PySpark using Claude Agent SDK (Opus 4.6)",
+    )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Interactive mode: approve each conversion",
+    )
+    parser.add_argument(
+        "--budget",
+        type=float,
+        default=50.0,
+        help="Total budget cap in USD (default: $50.00)",
+    )
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        default=3,
+        help="Max concurrent conversions (default: 3)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run Phase 1 + 2 only (discovery + planning, no conversion)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Custom output directory (default: ./output)",
+    )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Show all tool calls and intermediate outputs",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="opus",
+        choices=["opus", "sonnet", "haiku"],
+        help="Model for conversion (default: opus)",
+    )
+
+    args = parser.parse_args()
+
+    # Configure logging
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    # Build config
+    workspace = Path(__file__).parent.resolve()
+
+    config = ConverterConfig(
+        workspace=workspace,
+        interactive=args.interactive,
+        dry_run=args.dry_run,
+        verbose=args.verbose,
+        total_budget_usd=args.budget,
+        max_parallel_conversions=args.parallel,
+        conversion_model=args.model,
+    )
+
+    if args.output_dir:
+        config.output_dir = args.output_dir
+
+    # Validate
+    if not config.input_path.exists():
+        print(f"Error: Input directory not found: {config.input_path}")
+        print(f"Create it and add .sql files: mkdir -p {config.input_path}")
+        sys.exit(1)
+
+    sql_files = list(config.input_path.glob("*.sql"))
+    if not sql_files:
+        print(f"Error: No .sql files found in {config.input_path}")
+        sys.exit(1)
+
+    # Print banner
+    print()
+    print("=" * 60)
+    print("  sql2spark — SQL to PySpark Converter")
+    print("  Powered by Claude Agent SDK (Opus 4.6)")
+    print("=" * 60)
+    print(f"  Workspace:  {workspace}")
+    print(f"  Input:      {config.input_path} ({len(sql_files)} files)")
+    print(f"  Output:     {config.output_path}")
+    print(f"  Model:      {config.conversion_model}")
+    print(f"  Budget:     ${config.total_budget_usd:.2f}")
+    print(f"  Parallel:   {config.max_parallel_conversions}")
+    print(f"  Mode:       {'Interactive' if config.interactive else 'Automated'}")
+    if config.dry_run:
+        print(f"  Dry run:    Yes (Phase 1 + 2 only)")
+    print("=" * 60)
+    print()
+
+    # Run pipeline
+    try:
+        report = asyncio.run(run_pipeline(config))
+    except KeyboardInterrupt:
+        print("\nInterrupted by user.")
+        sys.exit(130)
+    except ValueError as e:
+        print(f"Configuration error: {e}")
+        sys.exit(1)
+
+    # Print final summary
+    print()
+    print("=" * 60)
+    print("  SUMMARY")
+    print("=" * 60)
+    print(f"  Objects converted: {report.converted}/{report.total_objects}")
+    if report.failed:
+        print(f"  Failed: {report.failed}")
+    if report.needs_review:
+        print(f"  Needs review: {report.needs_review}")
+    print(f"  Total cost: ${report.total_cost_usd:.4f}")
+    if report.validation_issues:
+        print(f"  Validation issues: {len(report.validation_issues)}")
+    print(f"  Report: {config.report_path}")
+    print("=" * 60)
+
+    # Exit code based on results
+    if report.failed > 0:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
