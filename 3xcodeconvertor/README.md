@@ -66,12 +66,16 @@ This tool uses Claude as the conversion engine, orchestrated through a **5-phase
  -------                          -------
  CONTEXT-AWARE VALIDATION ---> AUTO-FIX & ACTION ITEMS
  |                              |
- +- ast.parse() (free)          +- Fix HIGH/ERROR issues
- +- Claude review (Sonnet)      +- Safety: revert on syntax break
- +- Cross-file dependency       +- Developer action items:
- |  context injection           |  - auto_fixed
- +- Signature matching          |  - requires_manual
- +- Gotcha verification         |  - infrastructure_setup
+ +- ast.parse() (free)          +- Blacklist-based: try fix ALL
+ +- Claude review (Sonnet)      |  HIGH/ERROR unless cursor/
+ +- Cross-file dependency       |  dynamic SQL/MERGE
+ |  context injection      .--> +- Same dep context from Phase 4
+ +- Signature matching    /     |  (cross-file signature fixes)
+ +- Gotcha verification  /      +- Safety: ast.parse() + truncation
+ +- dep_context_by_file /       +- Developer action items:
+    (reused by Phase 5)         |  - auto_fixed
+                                |  - requires_manual
+                                |  - infrastructure_setup
                                 |  - recommended_review
                                 +- TODO collection
 
@@ -969,8 +973,9 @@ Individual objects (procedures, functions) are typically 50-500 lines. Phase 3 r
 | Syntax error in Phase 3 output | Self-corrects (validate + rewrite within same query) |
 | Syntax error after Phase 5 fix | **Reverts to original** -- safety guarantee via `ast.parse()` |
 | Phase 5 fix truncates file | **Reverts** -- truncation guard (>50% shorter = revert) |
+| Phase 5 cross-file mismatch | Fixed using dependency context (same signatures from Phase 4) |
 | Phase 3 object failure | Marks as failed, continues with next object |
-| Phase 4 critical issue | Logged in report, Phase 5 attempts auto-fix |
+| Phase 4 critical issue | Logged in report, Phase 5 attempts auto-fix (blacklist-based: tries all HIGH/ERROR unless cursor/dynamic SQL/MERGE) |
 | Interrupted mid-run | Checkpoint saved after each conversion; re-running skips completed |
 | Claude returns invalid JSON | 4-level fallback: direct parse --> code block extraction --> brace matching --> skip |
 | Non-canonical enum values | `@field_validator(mode="before")` with fuzzy keyword fallback |
