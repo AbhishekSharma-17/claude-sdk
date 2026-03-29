@@ -1,0 +1,50 @@
+{
+  "vw_ActiveProducts": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/active_products.py",
+    "cost_usd": 0.109505,
+    "session_id": "4bd6f627-29f3-4115-8cbd-66bc61c115be"
+  },
+  "fn_CalculateDiscount": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/calculate_discount.py",
+    "cost_usd": 0.11038474999999999,
+    "session_id": "6888c624-abf7-4c4e-884c-82dc58758317"
+  },
+  "fn_GetCustomerTier": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/get_customer_tier.py",
+    "cost_usd": 0.09572225000000001,
+    "session_id": "421e2c23-8da4-4054-b741-52574b7aafba"
+  },
+  "usp_StageSalesData": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/stage_sales_data.py",
+    "cost_usd": 0.2040725,
+    "session_id": "863f2bae-8cfa-4c4c-8f68-1115b501d499"
+  },
+  "usp_BuildCustomerProfile": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/build_customer_profile.py",
+    "cost_usd": 0.19273525,
+    "session_id": "f57831d5-0e2e-4349-9579-7074ece32ddd"
+  },
+  "usp_CalculateRevenue": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/calculate_revenue.py",
+    "cost_usd": 0.21908324999999998,
+    "session_id": "37ce2820-4015-4f88-b8ea-a4dad73a2635"
+  },
+  "usp_GenerateReport": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/generate_report.py",
+    "cost_usd": 0.26857574999999995,
+    "session_id": "4d95db01-7cd4-4883-bf8e-a6c487e55ca7"
+  },
+  "trg_AuditOrderChanges": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/audit_order_changes.py",
+    "cost_usd": 0.15637475,
+    "session_id": "1a286ef2-9e4e-479e-adff-9fe5e685b043"
+  }
+}

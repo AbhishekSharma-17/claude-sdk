@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import field
 from enum import StrEnum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ── Enums ─────────────────────────────────────────────────────────────────────
@@ -74,6 +74,102 @@ class SQLObject(BaseModel):
     known_limitations: list[str] = Field(default_factory=list)
     constructs_used: list[str] = Field(default_factory=list)
 
+    @field_validator("complexity_level", mode="before")
+    @classmethod
+    def normalize_complexity_level(cls, v: object) -> object:
+        """Normalize LLM-returned complexity labels to canonical enum values."""
+        if not isinstance(v, str):
+            return v
+        _MAP = {
+            # Simple tier
+            "low": "Simple",
+            "simple": "Simple",
+            "easy": "Simple",
+            "basic": "Simple",
+            "low complexity": "Simple",
+            # Moderate tier
+            "medium": "Moderate",
+            "moderate": "Moderate",
+            "medium complexity": "Moderate",
+            "low-medium": "Moderate",
+            "low-moderate": "Moderate",
+            # Complex tier
+            "high": "Complex",
+            "complex": "Complex",
+            "hard": "Complex",
+            "difficult": "Complex",
+            "medium-high": "Complex",
+            "moderate-high": "Complex",
+            "high complexity": "Complex",
+            # Very Complex tier
+            "very high": "Very Complex",
+            "very complex": "Very Complex",
+            "critical": "Very Complex",
+            "extreme": "Very Complex",
+            "very high complexity": "Very Complex",
+            "extremely complex": "Very Complex",
+        }
+        normalized = v.strip().lower()
+        if normalized in _MAP:
+            return _MAP[normalized]
+        # Fuzzy fallback: scan for the first recognisable keyword in the string
+        for keyword, canonical in (
+            ("very", "Very Complex"),
+            ("extreme", "Very Complex"),
+            ("critical", "Very Complex"),
+            ("high", "Complex"),
+            ("complex", "Complex"),
+            ("difficult", "Complex"),
+            ("medium", "Moderate"),
+            ("moderate", "Moderate"),
+            ("low", "Simple"),
+            ("simple", "Simple"),
+            ("easy", "Simple"),
+            ("basic", "Simple"),
+        ):
+            if keyword in normalized:
+                return canonical
+        return v  # pass through unchanged; Pydantic will surface the error
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_object_type(cls, v: object) -> object:
+        """Normalize object type variants to canonical enum values."""
+        if not isinstance(v, str):
+            return v
+        _MAP = {
+            # procedure variants
+            "procedure": "procedure",
+            "stored_procedure": "procedure",
+            "stored procedure": "procedure",
+            "usp": "procedure",
+            "sp": "procedure",
+            # function variants
+            "function": "function",
+            "scalar_function": "function",
+            "scalar function": "function",
+            "table_function": "function",
+            "table function": "function",
+            "table-valued function": "function",
+            "inline_function": "function",
+            "inline function": "function",
+            "fn": "function",
+            "udf": "function",
+            # view variants
+            "view": "view",
+            "vw": "view",
+            "indexed_view": "view",
+            "materialized_view": "view",
+            "materialized view": "view",
+            # trigger variants
+            "trigger": "trigger",
+            "trg": "trigger",
+            "dml_trigger": "trigger",
+            "dml trigger": "trigger",
+            "ddl_trigger": "trigger",
+        }
+        return _MAP.get(v.strip().lower(), v.strip().lower())
+
     def model_post_init(self, __context: object) -> None:
         if self.line_count == 0:
             self.line_count = self.end_line - self.start_line + 1
@@ -86,6 +182,48 @@ class FileInventory(BaseModel):
     file_complexity: FileComplexity = FileComplexity.SIMPLE_SCRIPT
     file_complexity_score: float = 0.0
     objects: list[SQLObject] = Field(default_factory=list)
+
+    @field_validator("dialect", mode="before")
+    @classmethod
+    def normalize_dialect(cls, v: object) -> object:
+        """Normalize SQL dialect variants to canonical values."""
+        if not isinstance(v, str):
+            return v
+        _MAP = {
+            "t-sql": "tsql",
+            "tsql": "tsql",
+            "mssql": "tsql",
+            "sql server": "tsql",
+            "transact-sql": "tsql",
+            "pl/sql": "plsql",
+            "plsql": "plsql",
+            "oracle": "plsql",
+            "pl/pgsql": "plpgsql",
+            "plpgsql": "plpgsql",
+            "postgresql": "plpgsql",
+            "postgres": "plpgsql",
+        }
+        return _MAP.get(v.strip().lower(), v.strip().lower())
+
+    @field_validator("file_complexity", mode="before")
+    @classmethod
+    def normalize_file_complexity(cls, v: object) -> object:
+        """Normalize file complexity labels to canonical values."""
+        if not isinstance(v, str):
+            return v
+        _MAP = {
+            "simple script": "Simple script",
+            "simple": "Simple script",
+            "standard script": "Standard script",
+            "standard": "Standard script",
+            "moderate script": "Standard script",
+            "complex script": "Complex script",
+            "complex": "Complex script",
+            "enterprise script": "Enterprise script",
+            "enterprise": "Enterprise script",
+            "very complex script": "Enterprise script",
+        }
+        return _MAP.get(v.strip().lower(), v)
 
 
 # ── Phase 1: Output Schema (for structured output) ───────────────────────────

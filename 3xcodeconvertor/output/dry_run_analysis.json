@@ -1,0 +1,831 @@
+{
+  "mode": "dry_run",
+  "inventories": [
+    {
+      "file_path": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/input/ecommerce_analytics.sql",
+      "total_lines": 553,
+      "dialect": "tsql",
+      "file_complexity": "Standard script",
+      "file_complexity_score": 2.6,
+      "objects": [
+        {
+          "name": "vw_ActiveProducts",
+          "type": "view",
+          "start_line": 6,
+          "end_line": 28,
+          "line_count": 23,
+          "parameters": [],
+          "references": [
+            "dbo.Products",
+            "dbo.Categories"
+          ],
+          "temp_tables_created": [],
+          "temp_tables_used": [],
+          "has_cursor": false,
+          "has_dynamic_sql": false,
+          "has_transaction": false,
+          "window_function_count": 0,
+          "complexity_score": 1.3,
+          "complexity_level": "Simple",
+          "known_limitations": [],
+          "constructs_used": [
+            "INNER JOIN",
+            "CASE",
+            "ISNULL",
+            "DATEDIFF"
+          ]
+        },
+        {
+          "name": "fn_CalculateDiscount",
+          "type": "function",
+          "start_line": 30,
+          "end_line": 63,
+          "line_count": 34,
+          "parameters": [
+            {
+              "name": "@OrderAmount",
+              "data_type": "DECIMAL(19, 4)",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@CustomerTier",
+              "data_type": "VARCHAR(20)",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@IsHolidaySeason",
+              "data_type": "BIT",
+              "direction": "IN",
+              "default_value": null
+            }
+          ],
+          "references": [],
+          "temp_tables_created": [],
+          "temp_tables_used": [],
+          "has_cursor": false,
+          "has_dynamic_sql": false,
+          "has_transaction": false,
+          "window_function_count": 0,
+          "complexity_score": 1.3,
+          "complexity_level": "Simple",
+          "known_limitations": [],
+          "constructs_used": [
+            "CASE",
+            "DECLARE",
+            "IF"
+          ]
+        },
+        {
+          "name": "fn_GetCustomerTier",
+          "type": "function",
+          "start_line": 65,
+          "end_line": 90,
+          "line_count": 26,
+          "parameters": [
+            {
+              "name": "@TotalSpend",
+              "data_type": "DECIMAL(19, 4)",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@OrderCount",
+              "data_type": "INT",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@AccountAgeDays",
+              "data_type": "INT",
+              "direction": "IN",
+              "default_value": null
+            }
+          ],
+          "references": [],
+          "temp_tables_created": [],
+          "temp_tables_used": [],
+          "has_cursor": false,
+          "has_dynamic_sql": false,
+          "has_transaction": false,
+          "window_function_count": 0,
+          "complexity_score": 0.9,
+          "complexity_level": "Simple",
+          "known_limitations": [],
+          "constructs_used": [
+            "CASE",
+            "DECLARE"
+          ]
+        },
+        {
+          "name": "usp_StageSalesData",
+          "type": "procedure",
+          "start_line": 92,
+          "end_line": 205,
+          "line_count": 114,
+          "parameters": [
+            {
+              "name": "@StartDate",
+              "data_type": "DATE",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@EndDate",
+              "data_type": "DATE",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@MinOrderAmount",
+              "data_type": "DECIMAL(19, 4)",
+              "direction": "IN",
+              "default_value": "0.00"
+            }
+          ],
+          "references": [
+            "dbo.Orders",
+            "dbo.OrderDetails",
+            "dbo.vw_ActiveProducts"
+          ],
+          "temp_tables_created": [
+            "#SalesStaging",
+            "#DailySummary"
+          ],
+          "temp_tables_used": [
+            "#SalesStaging"
+          ],
+          "has_cursor": false,
+          "has_dynamic_sql": false,
+          "has_transaction": false,
+          "window_function_count": 4,
+          "complexity_score": 3.3,
+          "complexity_level": "Moderate",
+          "known_limitations": [
+            "OBJECT_ID() checks (skip in PySpark)",
+            "Temp table indexes with INCLUDE columns"
+          ],
+          "constructs_used": [
+            "CTE",
+            "INNER JOIN",
+            "BETWEEN",
+            "CASE",
+            "ISNULL",
+            "DATEDIFF",
+            "ROW_NUMBER",
+            "SUM OVER",
+            "COUNT OVER",
+            "NTILE",
+            "STRING_AGG",
+            "SELECT INTO",
+            "CREATE INDEX",
+            "OBJECT_ID"
+          ]
+        },
+        {
+          "name": "usp_BuildCustomerProfile",
+          "type": "procedure",
+          "start_line": 207,
+          "end_line": 287,
+          "line_count": 81,
+          "parameters": [
+            {
+              "name": "@StartDate",
+              "data_type": "DATE",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@EndDate",
+              "data_type": "DATE",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@RecalculateTiers",
+              "data_type": "BIT",
+              "direction": "IN",
+              "default_value": "1"
+            }
+          ],
+          "references": [
+            "dbo.usp_StageSalesData",
+            "dbo.Customers",
+            "dbo.fn_GetCustomerTier"
+          ],
+          "temp_tables_created": [
+            "#CustomerProfile"
+          ],
+          "temp_tables_used": [
+            "#SalesStaging",
+            "#CustomerProfile"
+          ],
+          "has_cursor": true,
+          "has_dynamic_sql": false,
+          "has_transaction": false,
+          "window_function_count": 5,
+          "complexity_score": 4.8,
+          "complexity_level": "Complex",
+          "known_limitations": [
+            "Cursor-based row-by-row processing (lines 255-274) -- rewrite as vectorized operation"
+          ],
+          "constructs_used": [
+            "EXEC",
+            "LEFT JOIN",
+            "CASE",
+            "ISNULL",
+            "DATEDIFF",
+            "CURSOR",
+            "DECLARE",
+            "IF",
+            "SELECT INTO",
+            "OBJECT_ID",
+            "ROW_NUMBER",
+            "PERCENT_RANK",
+            "DENSE_RANK",
+            "LAG",
+            "LEAD",
+            "@@FETCH_STATUS"
+          ]
+        },
+        {
+          "name": "usp_CalculateRevenue",
+          "type": "procedure",
+          "start_line": 289,
+          "end_line": 391,
+          "line_count": 103,
+          "parameters": [
+            {
+              "name": "@StartDate",
+              "data_type": "DATE",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@EndDate",
+              "data_type": "DATE",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@IncludeProjections",
+              "data_type": "BIT",
+              "direction": "IN",
+              "default_value": "0"
+            }
+          ],
+          "references": [
+            "dbo.usp_StageSalesData",
+            "dbo.fn_CalculateDiscount"
+          ],
+          "temp_tables_created": [
+            "#RevenueCalc"
+          ],
+          "temp_tables_used": [
+            "#SalesStaging",
+            "#RevenueCalc"
+          ],
+          "has_cursor": false,
+          "has_dynamic_sql": false,
+          "has_transaction": false,
+          "window_function_count": 4,
+          "complexity_score": 3.3,
+          "complexity_level": "Moderate",
+          "known_limitations": [
+            "PIVOT (lines 356-359) -- needs careful column mapping in PySpark"
+          ],
+          "constructs_used": [
+            "EXEC",
+            "CTE",
+            "CASE",
+            "ISNULL",
+            "DATEDIFF",
+            "NULLIF",
+            "PIVOT",
+            "SELECT INTO",
+            "OBJECT_ID",
+            "IF",
+            "SUM OVER",
+            "AVG OVER",
+            "LAG",
+            "ROW_NUMBER",
+            "CAST"
+          ]
+        },
+        {
+          "name": "usp_GenerateReport",
+          "type": "procedure",
+          "start_line": 393,
+          "end_line": 484,
+          "line_count": 92,
+          "parameters": [
+            {
+              "name": "@StartDate",
+              "data_type": "DATE",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@EndDate",
+              "data_type": "DATE",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@ReportType",
+              "data_type": "VARCHAR(50)",
+              "direction": "IN",
+              "default_value": "'Full'"
+            }
+          ],
+          "references": [
+            "dbo.usp_BuildCustomerProfile",
+            "dbo.usp_CalculateRevenue",
+            "dbo.ReportLog",
+            "dbo.ErrorLog"
+          ],
+          "temp_tables_created": [],
+          "temp_tables_used": [
+            "#SalesStaging",
+            "#RevenueCalc",
+            "#CustomerProfile"
+          ],
+          "has_cursor": false,
+          "has_dynamic_sql": false,
+          "has_transaction": true,
+          "window_function_count": 2,
+          "complexity_score": 4.4,
+          "complexity_level": "Complex",
+          "known_limitations": [
+            "Transaction semantics (lines 402-472) -- consider Delta Lake for ACID"
+          ],
+          "constructs_used": [
+            "EXEC",
+            "BEGIN TRY",
+            "END CATCH",
+            "BEGIN TRANSACTION",
+            "COMMIT",
+            "ROLLBACK",
+            "CASE",
+            "LEFT JOIN",
+            "IF",
+            "IN",
+            "TOP",
+            "NULLIF",
+            "RAISERROR",
+            "INSERT",
+            "DECLARE",
+            "CAST",
+            "DATEDIFF",
+            "SUM OVER",
+            "ROW_NUMBER",
+            "SYSTEM_USER",
+            "ERROR_MESSAGE",
+            "ERROR_SEVERITY",
+            "ERROR_LINE",
+            "@@TRANCOUNT",
+            "scalar subquery"
+          ]
+        },
+        {
+          "name": "trg_AuditOrderChanges",
+          "type": "trigger",
+          "start_line": 486,
+          "end_line": 553,
+          "line_count": 68,
+          "parameters": [],
+          "references": [
+            "dbo.Orders",
+            "dbo.OrderAuditLog"
+          ],
+          "temp_tables_created": [],
+          "temp_tables_used": [],
+          "has_cursor": false,
+          "has_dynamic_sql": false,
+          "has_transaction": false,
+          "window_function_count": 0,
+          "complexity_score": 1.8,
+          "complexity_level": "Simple",
+          "known_limitations": [
+            "Trigger has no direct PySpark equivalent -- implement as change-capture logic or Delta Lake CDF"
+          ],
+          "constructs_used": [
+            "INNER JOIN",
+            "ISNULL",
+            "CAST",
+            "INSERT SELECT",
+            "inserted",
+            "deleted",
+            "SYSTEM_USER",
+            "GETDATE"
+          ]
+        }
+      ]
+    }
+  ],
+  "conversion_plan": {
+    "total_objects": 8,
+    "conversion_levels": [
+      {
+        "level": 0,
+        "description": "No dependencies \u2014 views and standalone functions",
+        "objects": [
+          "vw_ActiveProducts",
+          "fn_CalculateDiscount",
+          "fn_GetCustomerTier"
+        ],
+        "strategy": "Parallel conversion, single pass each"
+      },
+      {
+        "level": 1,
+        "description": "Depends on Level 0 (vw_ActiveProducts)",
+        "objects": [
+          "usp_StageSalesData"
+        ],
+        "strategy": "Standard conversion, check gotchas list"
+      },
+      {
+        "level": 2,
+        "description": "Depends on Level 0 functions + Level 1 proc + #SalesStaging temp table",
+        "objects": [
+          "usp_BuildCustomerProfile",
+          "usp_CalculateRevenue"
+        ],
+        "strategy": "Careful conversion \u2014 cursor rewrite (BuildCustomerProfile), PIVOT mapping (CalculateRevenue)"
+      },
+      {
+        "level": 3,
+        "description": "Orchestrator \u2014 depends on Level 2 procs + all temp tables",
+        "objects": [
+          "usp_GenerateReport"
+        ],
+        "strategy": "Careful conversion, transaction semantics need TODO, scalar subqueries need flattening"
+      },
+      {
+        "level": 4,
+        "description": "Trigger \u2014 no direct PySpark equivalent, convert last",
+        "objects": [
+          "trg_AuditOrderChanges"
+        ],
+        "strategy": "Rewrite as change-capture helper function or Delta Lake CDF pattern"
+      }
+    ],
+    "dependency_edges": [
+      {
+        "source": "usp_StageSalesData",
+        "target": "vw_ActiveProducts",
+        "relationship": "references (JOIN at line 124)"
+      },
+      {
+        "source": "usp_BuildCustomerProfile",
+        "target": "usp_StageSalesData",
+        "relationship": "calls (EXEC at line 215)"
+      },
+      {
+        "source": "usp_BuildCustomerProfile",
+        "target": "fn_GetCustomerTier",
+        "relationship": "calls (line 264 inside cursor)"
+      },
+      {
+        "source": "usp_BuildCustomerProfile",
+        "target": "#SalesStaging",
+        "relationship": "reads temp table (JOIN at line 244)"
+      },
+      {
+        "source": "usp_CalculateRevenue",
+        "target": "usp_StageSalesData",
+        "relationship": "calls (EXEC at line 297)"
+      },
+      {
+        "source": "usp_CalculateRevenue",
+        "target": "fn_CalculateDiscount",
+        "relationship": "calls (lines 308-317, 3 invocations)"
+      },
+      {
+        "source": "usp_CalculateRevenue",
+        "target": "#SalesStaging",
+        "relationship": "reads temp table (FROM at line 327)"
+      },
+      {
+        "source": "usp_GenerateReport",
+        "target": "usp_BuildCustomerProfile",
+        "relationship": "calls (EXEC at line 404)"
+      },
+      {
+        "source": "usp_GenerateReport",
+        "target": "usp_CalculateRevenue",
+        "relationship": "calls (EXEC at line 405)"
+      },
+      {
+        "source": "usp_GenerateReport",
+        "target": "#SalesStaging",
+        "relationship": "reads temp table (lines 413-420, 449-461)"
+      },
+      {
+        "source": "usp_GenerateReport",
+        "target": "#RevenueCalc",
+        "relationship": "reads temp table (lines 416-418, 457-460)"
+      },
+      {
+        "source": "usp_GenerateReport",
+        "target": "#CustomerProfile",
+        "relationship": "reads temp table (lines 425-444)"
+      }
+    ],
+    "object_plans": {
+      "vw_ActiveProducts": {
+        "conversion_order": 1,
+        "complexity": "Simple (1.3)",
+        "estimated_tokens": 8000,
+        "dependencies_resolved": [],
+        "dependency_signatures": "",
+        "conversion_instructions": [
+          "Lines 6-28: Convert CREATE VIEW to `def vw_active_products(spark: SparkSession) -> DataFrame`",
+          "Line 15: ISNULL(p.Description, 'No description') \u2192 F.coalesce(F.col('Description'), F.lit('No description'))",
+          "Lines 16-21: CASE on UnitPrice \u2192 F.when(F.col('UnitPrice') > 100, 'Premium').when(F.col('UnitPrice') > 50, 'Standard').when(F.col('UnitPrice') > 10, 'Budget').otherwise('Clearance')",
+          "Line 22: DATEDIFF(day, p.CreatedDate, GETDATE()) \u2192 F.datediff(F.current_timestamp(), F.col('CreatedDate')) \u2014 #1 GOTCHA: args reversed vs SQL",
+          "Line 24: INNER JOIN on CategoryID \u2192 .join(categories_df, on='CategoryID', how='inner')",
+          "Line 25: WHERE p.IsActive = 1 \u2192 .where(F.col('IsActive') == 1) \u2014 #10 GOTCHA: BIT column, but filter is == 1 so safe",
+          "Lines 25-27: Chain .where() for IsActive, IsDeleted, UnitsInStock filters"
+        ],
+        "gotchas_relevant": [
+          "#1 DATEDIFF argument order reversed (line 22)",
+          "#2 Case-sensitive string comparison \u2014 check if PriceTier used in downstream JOINs/filters"
+        ],
+        "limitations_found": [],
+        "strategy": "Direct conversion, single pass"
+      },
+      "fn_CalculateDiscount": {
+        "conversion_order": 2,
+        "complexity": "Simple (1.3)",
+        "estimated_tokens": 10000,
+        "dependencies_resolved": [],
+        "dependency_signatures": "",
+        "conversion_instructions": [
+          "Lines 30-62: Convert to Python function: `def fn_calculate_discount(order_amount: Decimal, customer_tier: str, is_holiday_season: bool) -> Decimal`",
+          "ALSO create a columnar version for DataFrame use: `def fn_calculate_discount_col(order_amount: Column, customer_tier: Column, is_holiday_season: Column) -> Column` using F.when chains",
+          "Lines 42-48: CASE @CustomerTier \u2192 F.when(customer_tier == 'Platinum', 0.15).when(...Gold..., 0.10).when(...Silver..., 0.05).when(...Bronze..., 0.02).otherwise(0.0)",
+          "Lines 50-51: IF @IsHolidaySeason = 1 \u2192 F.when(is_holiday_season == 1, discount_rate + 0.05).otherwise(discount_rate) \u2014 #10 GOTCHA: BIT is nullable, handle NULL explicitly",
+          "Lines 53-54: Cap at 0.25 \u2192 F.least(discount_rate, F.lit(0.25))",
+          "Line 56: @OrderAmount * @DiscountRate \u2192 order_amount * discount_rate",
+          "Lines 58-59: Min discount floor \u2192 F.when((order_amount > 50) & (final_discount < 1), F.lit(1.0)).otherwise(final_discount)",
+          "IMPORTANT: Use DecimalType(19,4) throughout \u2014 #5 GOTCHA: decimal precision loss. Use F.lit with Decimal type for constants",
+          "Prefer columnar version (F.when chain) over Python UDF \u2014 #8 GOTCHA: Python UDF 50-100x slower"
+        ],
+        "gotchas_relevant": [
+          "#5 Decimal arithmetic precision loss",
+          "#8 Python UDF performance \u2014 must use native F.when chain, not UDF",
+          "#10 BIT NULL handling (is_holiday_season param)"
+        ],
+        "limitations_found": [],
+        "strategy": "Direct conversion, single pass. Create both scalar (for testing) and columnar (for production) versions"
+      },
+      "fn_GetCustomerTier": {
+        "conversion_order": 3,
+        "complexity": "Simple (0.9)",
+        "estimated_tokens": 8000,
+        "dependencies_resolved": [],
+        "dependency_signatures": "",
+        "conversion_instructions": [
+          "Lines 65-89: Convert to columnar function: `def fn_get_customer_tier_col(total_spend: Column, order_count: Column, account_age_days: Column) -> Column`",
+          "Lines 76-86: Nested CASE \u2192 F.when chain. Order matters (most restrictive first):",
+          "  F.when((total_spend >= 10000) & (order_count >= 50) & (account_age_days >= 730), 'Platinum')",
+          "  .when((total_spend >= 5000) & (order_count >= 25) & (account_age_days >= 365), 'Gold')",
+          "  .when((total_spend >= 1000) & (order_count >= 10), 'Silver')",
+          "  .when((total_spend >= 100) | (order_count >= 3), 'Bronze')",
+          "  .otherwise('Standard')",
+          "NOTE: Line 83 uses OR not AND \u2014 preserve this logic exactly",
+          "Also provide scalar version for testing: `def fn_get_customer_tier(total_spend, order_count, account_age_days) -> str`",
+          "IMPORTANT: Wrap each condition in parentheses for PySpark bitwise operators"
+        ],
+        "gotchas_relevant": [
+          "#5 Decimal precision \u2014 input is DECIMAL(19,4), comparisons with integer literals are safe"
+        ],
+        "limitations_found": [],
+        "strategy": "Direct conversion, single pass"
+      },
+      "usp_StageSalesData": {
+        "conversion_order": 4,
+        "complexity": "Moderate (3.3)",
+        "estimated_tokens": 45000,
+        "dependencies_resolved": [
+          "vw_ActiveProducts"
+        ],
+        "dependency_signatures": "def vw_active_products(spark: SparkSession) -> DataFrame  # returns: ProductID, ProductName, CategoryID, CategoryName, UnitPrice, UnitsInStock, Description, PriceTier, DaysSinceListed",
+        "conversion_instructions": [
+          "Lines 92-96: Convert to `def usp_stage_sales_data(spark: SparkSession, start_date: date, end_date: date, min_order_amount: Decimal = Decimal('0.00')) -> tuple[DataFrame, DataFrame]` \u2014 returns (#SalesStaging, #DailySummary)",
+          "Lines 98: SET NOCOUNT ON \u2192 skip",
+          "Lines 100-104: OBJECT_ID temp table drops \u2192 skip (DataFrame lifecycle)",
+          "Lines 106-148: CTE BaseOrders + RankedOrders \u2192 two chained DataFrame transformations",
+          "Line 118: ISNULL(od.Discount, 0) \u2192 F.coalesce(F.col('Discount'), F.lit(0))",
+          "Line 121: DATEDIFF(day, o.OrderDate, ISNULL(o.ShippedDate, GETDATE())) \u2192 F.datediff(F.coalesce(F.col('ShippedDate'), F.current_timestamp()), F.col('OrderDate')) \u2014 #1 GOTCHA: reversed args",
+          "Line 124: JOIN vw_ActiveProducts \u2192 join with vw_active_products(spark) DataFrame",
+          "Line 125: BETWEEN @StartDate AND @EndDate \u2192 .where(F.col('OrderDate').between(start_date, end_date))",
+          "Line 127: od.Quantity * od.UnitPrice >= @MinOrderAmount \u2192 filter expression",
+          "Lines 132-135: ROW_NUMBER() OVER (PARTITION BY CustomerID ORDER BY OrderDate DESC) \u2192 F.row_number().over(Window.partitionBy('CustomerID').orderBy(F.col('OrderDate').desc())) \u2014 #3 GOTCHA: NULL ordering, use .desc_nulls_last()",
+          "Lines 136-140: SUM OVER with ROWS BETWEEN \u2192 explicit .rowsBetween(Window.unboundedPreceding, Window.currentRow) \u2014 #4 GOTCHA: RANGE vs ROWS, already has ROWS in SQL so match it",
+          "Lines 141-143: COUNT(*) OVER (PARTITION BY CategoryName) \u2192 F.count('*').over(Window.partitionBy('CategoryName')) \u2014 no ORDER BY so full frame, OK",
+          "Lines 144-146: NTILE(4) \u2192 F.ntile(4).over(Window.orderBy(F.col('LineTotal').desc_nulls_last()))",
+          "Lines 168-173: CASE ShippingSpeed \u2192 F.when chain",
+          "Line 174: CAST(OrderDate AS DATE) \u2192 F.col('OrderDate').cast('date')",
+          "Line 175-176: YEAR/MONTH \u2192 F.year/F.month",
+          "Line 177: DATEPART(weekday, ...) \u2192 F.dayofweek() \u2014 same 1=Sunday mapping",
+          "Line 178: SELECT INTO #SalesStaging \u2192 assign to variable, .repartition('CustomerID').cache(), then .count() to materialize",
+          "Lines 181-182: CREATE INDEX \u2192 already handled by .repartition('CustomerID'). Skip NONCLUSTERED index (comment only)",
+          "Lines 184-200: Second SELECT INTO #DailySummary \u2192 groupBy('OrderDateOnly').agg(...)",
+          "Line 186: COUNT(DISTINCT OrderID) \u2192 F.countDistinct('OrderID')",
+          "Line 192-193: SUM(CASE WHEN ...) \u2192 F.sum(F.when(F.col('ShippingSpeed') == 'Fast', 1).otherwise(0))",
+          "Line 194: STRING_AGG(DISTINCT CategoryName, ', ') \u2192 F.concat_ws(', ', F.collect_set('CategoryName')) \u2014 use collect_set for DISTINCT",
+          "Line 200: ORDER BY in GROUP BY query \u2192 .orderBy('OrderDateOnly') on the result",
+          "Lines 202-203: Final SELECT statements \u2192 return tuple of (sales_staging_df, daily_summary_df)"
+        ],
+        "gotchas_relevant": [
+          "#1 DATEDIFF reversed (line 121)",
+          "#3 NULL ordering (lines 134, 145)",
+          "#4 Window frame ROWS vs RANGE (lines 136-140, already ROWS in SQL)",
+          "#5 Decimal precision (LineTotal arithmetic)",
+          "#9 COUNT(*) vs COUNT(col) \u2014 line 186 uses COUNT(DISTINCT) correctly"
+        ],
+        "limitations_found": [
+          "OBJECT_ID() checks (lines 100-104) \u2014 skip",
+          "Temp table indexes (lines 181-182) \u2014 .repartition() proxy"
+        ],
+        "strategy": "Standard conversion, check gotchas list. Return tuple of DataFrames for temp table flow."
+      },
+      "usp_BuildCustomerProfile": {
+        "conversion_order": 5,
+        "complexity": "Complex (4.8)",
+        "estimated_tokens": 50000,
+        "dependencies_resolved": [
+          "fn_GetCustomerTier",
+          "usp_StageSalesData"
+        ],
+        "dependency_signatures": "def usp_stage_sales_data(spark, start_date, end_date, min_order_amount=Decimal('0.00')) -> tuple[DataFrame, DataFrame]\ndef fn_get_customer_tier_col(total_spend: Column, order_count: Column, account_age_days: Column) -> Column",
+        "conversion_instructions": [
+          "Lines 207-210: Convert to `def usp_build_customer_profile(spark: SparkSession, start_date: date, end_date: date, recalculate_tiers: bool = True, sales_staging_df: DataFrame | None = None) -> DataFrame`",
+          "Line 213: SET NOCOUNT ON \u2192 skip",
+          "Line 215: EXEC usp_StageSalesData \u2192 call usp_stage_sales_data() if sales_staging_df not provided; receive tuple, use first element",
+          "Lines 217-218: OBJECT_ID drop \u2192 skip",
+          "Lines 220-248: SELECT INTO #CustomerProfile with LEFT JOIN to #SalesStaging \u2192 customers.join(sales_staging_df, on='CustomerID', how='left').groupBy(...).agg(...)",
+          "Line 224: ISNULL(c.Region, 'Unknown') \u2192 F.coalesce(F.col('Region'), F.lit('Unknown'))",
+          "Line 226: DATEDIFF(day, c.RegistrationDate, GETDATE()) \u2192 F.datediff(F.current_timestamp(), F.col('RegistrationDate')) \u2014 #1 GOTCHA reversed",
+          "Line 228: ISNULL(SUM(s.LineTotal), 0) \u2192 F.coalesce(F.sum('LineTotal'), F.lit(0))",
+          "Line 232: DATEDIFF(day, MAX(s.OrderDate), GETDATE()) \u2192 F.datediff(F.current_timestamp(), F.max('OrderDate')) \u2014 #1 GOTCHA reversed",
+          "Line 233: AVG(CAST(DaysToShip AS DECIMAL(10,2))) \u2192 F.avg(F.col('DaysToShip').cast(DecimalType(10,2)))",
+          "Lines 236-241: CASE on DATEDIFF for EngagementStatus \u2192 compute DaysSinceLastOrder first, then F.when chain",
+          "CRITICAL \u2014 Lines 255-274: CURSOR REWRITE. The cursor iterates #CustomerProfile, calls fn_GetCustomerTier per row, updates EngagementStatus. VECTORIZE THIS:",
+          "  Replace entire cursor block (lines 255-274) with single .withColumn():",
+          "  `profile_df = profile_df.withColumn('CustomerTier', fn_get_customer_tier_col(F.col('TotalSpend'), F.col('TotalOrders'), F.col('AccountAgeDays')))`",
+          "  Then: `.withColumn('EngagementStatus', F.concat(F.col('EngagementStatus'), F.lit(' ('), F.col('CustomerTier'), F.lit(')')))`",
+          "  This eliminates the cursor entirely \u2014 #8 GOTCHA: UDF avoidance, use columnar fn_get_customer_tier_col",
+          "Line 250: IF @RecalculateTiers = 1 \u2192 Python `if recalculate_tiers:` \u2014 #10 GOTCHA: BIT nullable, but it's a parameter with default=1, safe",
+          "Lines 277-285: Final SELECT with window functions:",
+          "  Line 279: ROW_NUMBER() OVER (ORDER BY TotalSpend DESC) \u2192 F.row_number().over(Window.orderBy(F.col('TotalSpend').desc_nulls_last())) \u2014 #3 GOTCHA",
+          "  Line 280: PERCENT_RANK() OVER (ORDER BY TotalSpend) \u2192 F.percent_rank().over(Window.orderBy(F.col('TotalSpend').asc_nulls_first())) \u2014 #3 GOTCHA: match SQL NULL ordering",
+          "  Line 281: DENSE_RANK() OVER (PARTITION BY Region ...) \u2192 F.dense_rank().over(Window.partitionBy('Region').orderBy(F.col('TotalSpend').desc_nulls_last()))",
+          "  Lines 282-283: LAG/LEAD \u2192 F.lag('TotalSpend').over(regional_window), F.lead('TotalSpend').over(regional_window)"
+        ],
+        "gotchas_relevant": [
+          "#1 DATEDIFF reversed (lines 226, 232)",
+          "#3 NULL ordering (lines 279-283)",
+          "#8 UDF avoidance \u2014 cursor MUST be vectorized using columnar function, not Python UDF",
+          "#10 BIT NULL handling (@RecalculateTiers parameter)"
+        ],
+        "limitations_found": [
+          "Cursor-based row-by-row processing (lines 255-274) \u2014 MUST rewrite as vectorized .withColumn() using fn_get_customer_tier_col. Add comment: # Vectorized replacement for cursor at SQL lines 255-274"
+        ],
+        "strategy": "Careful conversion \u2014 cursor rewrite is critical. Vectorize using columnar fn_get_customer_tier_col. Add TODO comment at cursor location."
+      },
+      "usp_CalculateRevenue": {
+        "conversion_order": 6,
+        "complexity": "Moderate (3.3)",
+        "estimated_tokens": 45000,
+        "dependencies_resolved": [
+          "fn_CalculateDiscount",
+          "usp_StageSalesData"
+        ],
+        "dependency_signatures": "def usp_stage_sales_data(spark, start_date, end_date, min_order_amount=Decimal('0.00')) -> tuple[DataFrame, DataFrame]\ndef fn_calculate_discount_col(order_amount: Column, customer_tier: Column, is_holiday_season: Column) -> Column",
+        "conversion_instructions": [
+          "Lines 289-292: Convert to `def usp_calculate_revenue(spark: SparkSession, start_date: date, end_date: date, include_projections: bool = False, sales_staging_df: DataFrame | None = None) -> tuple[DataFrame, DataFrame, DataFrame | None]` \u2014 returns (#RevenueCalc, monthly_summary, pivot_result, optional projection)",
+          "Line 295: SET NOCOUNT ON \u2192 skip",
+          "Line 297: EXEC usp_StageSalesData \u2192 call or receive sales_staging_df param",
+          "Lines 299-300: OBJECT_ID \u2192 skip",
+          "Lines 302-327: SELECT INTO #RevenueCalc from #SalesStaging",
+          "Lines 308-310: dbo.fn_CalculateDiscount(s.LineTotal, s.PriceTier, CASE WHEN MONTH(OrderDate) IN (11,12) THEN 1 ELSE 0 END) \u2192 fn_calculate_discount_col(F.col('LineTotal'), F.col('PriceTier'), F.when(F.month('OrderDate').isin(11, 12), F.lit(1)).otherwise(F.lit(0)))",
+          "Lines 311-317: Same fn_CalculateDiscount called 3 times with same args \u2192 compute once, reuse: `discount_col = fn_calculate_discount_col(...)`, then .withColumn('CalculatedDiscount', discount_col), .withColumn('NetRevenue', F.col('LineTotal') - discount_col), .withColumn('Profit', F.col('LineTotal') - discount_col - F.col('ShippingCost'))",
+          "Lines 318-322: CASE for OrderValueSegment \u2192 F.when chain",
+          "Line 325: DATEDIFF(month, @StartDate, s.OrderDate) \u2192 F.months_between(F.col('OrderDate'), F.lit(start_date)).cast('int') \u2014 #6 GOTCHA: months_between returns DOUBLE, must .cast('int'). Also #1 GOTCHA: reversed args",
+          "Lines 329-349: Monthly aggregation with nested window functions:",
+          "  Line 337: NULLIF(SUM(GrossRevenue), 0) \u2192 use _nullif_zero helper: F.when(F.sum('GrossRevenue') == 0, None).otherwise(F.sum('GrossRevenue')) \u2014 #5 GOTCHA: DecimalType",
+          "  Lines 338-341: SUM(SUM(NetRevenue)) OVER (ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) \u2192 first groupBy+agg to get monthly totals, then window on result: F.sum('TotalNet').over(Window.orderBy('OrderYear','OrderMonth').rowsBetween(Window.unboundedPreceding, Window.currentRow)) \u2014 #4 GOTCHA: explicit ROWS frame",
+          "  Lines 342-345: AVG over ROWS BETWEEN 2 PRECEDING AND CURRENT ROW \u2192 F.avg('TotalNet').over(Window.orderBy('OrderYear','OrderMonth').rowsBetween(-2, Window.currentRow))",
+          "  Line 346: LAG on aggregated SUM \u2192 F.lag('TotalNet').over(Window.orderBy('OrderYear','OrderMonth'))",
+          "Lines 351-360: PIVOT \u2192 Use .groupBy('CategoryName').pivot('OrderMonth', [1,2,3,4,5,6,7,8,9,10,11,12]).agg(F.sum('NetRevenue'))",
+          "Lines 362-389: IF @IncludeProjections \u2014 linear trend projection:",
+          "  Lines 364-371: CTE MonthlyTrend \u2192 groupBy + agg + row_number",
+          "  Lines 373-381: CTE TrendCalc \u2014 linear regression slope calculation \u2192 single-row aggregation: compute slope = (N*SUM(xy) - SUM(x)*SUM(y)) / NULLIF(N*SUM(x\u00b2) - SUM(x)\u00b2, 0)",
+          "  Lines 382-388: Final projection SELECT \u2192 compute from aggregated values, use F.coalesce for ISNULL(TrendSlope, 0)"
+        ],
+        "gotchas_relevant": [
+          "#1 DATEDIFF reversed (line 325)",
+          "#4 Window frame \u2014 explicit ROWS BETWEEN in SQL, match exactly (lines 338-345)",
+          "#5 Decimal precision (financial calculations throughout)",
+          "#6 months_between returns DOUBLE (line 325)",
+          "#8 UDF avoidance \u2014 use columnar fn_calculate_discount_col"
+        ],
+        "limitations_found": [
+          "PIVOT (lines 356-359) \u2014 use .groupBy().pivot().agg() pattern. Must specify explicit value list [1..12] for performance"
+        ],
+        "strategy": "Standard conversion. Compute discount column ONCE and reuse. PIVOT needs careful column mapping."
+      },
+      "usp_GenerateReport": {
+        "conversion_order": 7,
+        "complexity": "Complex (4.4)",
+        "estimated_tokens": 50000,
+        "dependencies_resolved": [
+          "usp_BuildCustomerProfile",
+          "usp_CalculateRevenue",
+          "usp_StageSalesData",
+          "fn_GetCustomerTier",
+          "fn_CalculateDiscount"
+        ],
+        "dependency_signatures": "def usp_stage_sales_data(spark, start_date, end_date, min_order_amount) -> tuple[DataFrame, DataFrame]\ndef usp_build_customer_profile(spark, start_date, end_date, recalculate_tiers, sales_staging_df) -> DataFrame\ndef usp_calculate_revenue(spark, start_date, end_date, include_projections, sales_staging_df) -> tuple[DataFrame, DataFrame, DataFrame | None]",
+        "conversion_instructions": [
+          "Lines 393-396: Convert to `def usp_generate_report(spark: SparkSession, start_date: date, end_date: date, report_type: str = 'Full') -> dict[str, DataFrame]` \u2014 returns dict of named result DataFrames",
+          "Line 399: SET NOCOUNT ON \u2192 skip",
+          "Lines 401-402: BEGIN TRY + BEGIN TRANSACTION \u2192 `try:` block. Add TODO comment for transaction semantics",
+          "Line 404: EXEC usp_BuildCustomerProfile \u2192 Call usp_stage_sales_data first, pass sales_staging_df to both downstream procs to avoid double execution",
+          "CRITICAL OPTIMIZATION: usp_BuildCustomerProfile (line 404) and usp_CalculateRevenue (line 405) BOTH call usp_StageSalesData. In PySpark, call staging ONCE and pass DataFrame to both.",
+          "Line 405: EXEC usp_CalculateRevenue with @IncludeProjections=1 \u2192 pass include_projections=True",
+          "Lines 407-421: IF @ReportType IN ('Full','Summary') \u2192 Python `if report_type in ('Full', 'Summary'):`",
+          "Lines 409-420: Scalar subqueries \u2192 pre-compute all aggregates from sales_staging_df and revenue_calc_df:",
+          "  Line 412: DATEDIFF(day, @StartDate, @EndDate) \u2192 (end_date - start_date).days \u2014 use Python date arithmetic, not F.datediff (scalar params)",
+          "  Lines 413-420: Each (SELECT ... FROM #table) scalar subquery \u2192 .agg().collect()[0][0] or compute all in one .agg() call. Better: build a single-row summary DataFrame with all metrics",
+          "Lines 423-444: IF Customers section \u2192 TOP 20 with CASE \u2192 .orderBy(F.col('TotalSpend').desc_nulls_last()).limit(20)",
+          "Lines 436-442: CASE for ActionRecommendation \u2192 F.when chain with compound conditions",
+          "Lines 447-462: IF Categories section with window functions:",
+          "  Line 455: SUM(LineTotal) * 100.0 / NULLIF(SUM(SUM(LineTotal)) OVER (), 0) \u2192 After groupBy.agg(), use window: F.col('Revenue') * 100 / F.sum('Revenue').over(Window.partitionBy()) \u2014 #5 GOTCHA: decimal precision",
+          "  Line 456: ROW_NUMBER() OVER (ORDER BY SUM(LineTotal) DESC) \u2192 F.row_number().over(Window.orderBy(F.col('Revenue').desc_nulls_last())) \u2014 #3 GOTCHA",
+          "  Line 458: NULLIF in division \u2192 _nullif_zero helper",
+          "  Line 460: LEFT JOIN #RevenueCalc \u2192 .join(revenue_calc_df, on=['OrderID', 'ProductID'], how='left') \u2014 note: need ProductID in revenue_calc, but original #RevenueCalc doesn't have ProductID. Check: line 302 selects from #SalesStaging but doesn't include ProductID. This may be a bug in original SQL or ProductID maps via OrderID. Add TODO comment.",
+          "Lines 465-466: INSERT INTO ReportLog \u2192 spark.table('ReportLog') write or TODO for audit logging. Use DataFrame.write or Delta append",
+          "Line 468: COMMIT \u2192 skip (no transaction in Spark)",
+          "Lines 470-482: CATCH block \u2192 `except Exception as exc:` with logging to ErrorLog table",
+          "Line 474: ERROR_MESSAGE() \u2192 str(exc)",
+          "Line 481: RAISERROR \u2192 `raise RuntimeError(str(exc))` or `raise`"
+        ],
+        "gotchas_relevant": [
+          "#1 DATEDIFF reversed (line 412, but use Python date math for params)",
+          "#3 NULL ordering (lines 444, 456)",
+          "#5 Decimal precision (lines 455, 458)",
+          "#9 COUNT(*) vs COUNT(col) \u2014 lines 413-414 use COUNT(DISTINCT), correct mapping"
+        ],
+        "limitations_found": [
+          "Transaction semantics (lines 401-472) \u2014 add TODO: # TODO: Transaction semantics at SQL lines 401-472 -- consider Delta Lake for ACID",
+          "INSERT INTO ReportLog/ErrorLog (lines 465-466, 478-479) \u2014 add TODO: # TODO: INSERT into ReportLog/ErrorLog -- implement as Delta Lake append or external logging",
+          "SYSTEM_USER (line 466) \u2014 no direct equivalent, use spark.conf.get('spark.user') or os.getenv('USER')",
+          "Possible SQL bug: #RevenueCalc JOIN on ProductID (line 460) but ProductID not in #RevenueCalc SELECT (line 302). Add TODO for review."
+        ],
+        "strategy": "Careful conversion. Key optimization: call usp_StageSalesData ONCE and share DataFrame. Flatten scalar subqueries into single aggregation. Flag transaction semantics."
+      },
+      "trg_AuditOrderChanges": {
+        "conversion_order": 8,
+        "complexity": "Simple (1.8)",
+        "estimated_tokens": 15000,
+        "dependencies_resolved": [],
+        "dependency_signatures": "",
+        "conversion_instructions": [
+          "Lines 486-553: No direct PySpark trigger equivalent. Convert to: `def audit_order_changes(old_df: DataFrame, new_df: DataFrame) -> DataFrame` \u2014 a change-capture function",
+          "Lines 486-488: CREATE TRIGGER ON dbo.Orders AFTER UPDATE \u2192 function that takes old and new snapshots and detects changes",
+          "Line 491: SET NOCOUNT ON \u2192 skip",
+          "Lines 502-511: Detect OrderStatus changes \u2192 old_df.join(new_df, on='OrderID').where(old_df.OrderStatus != new_df.OrderStatus) \u2192 select with 'OrderStatus' as FieldChanged literal",
+          "Line 511: WHERE i.OrderStatus <> d.OrderStatus \u2192 .where(F.col('old_OrderStatus') != F.col('new_OrderStatus')) \u2014 #2 GOTCHA: case-sensitive comparison. If OrderStatus values have mixed case, use F.lower()",
+          "Lines 522-531: Detect ShippedDate changes \u2192 compare with ISNULL sentinel:",
+          "  Line 531: ISNULL(ShippedDate, '1900-01-01') \u2192 F.coalesce(F.col('ShippedDate'), F.lit('1900-01-01').cast('date')) for NULL-safe comparison. OR better: use .eqNullSafe() for NULL-safe comparison",
+          "Lines 525-526: CAST(ShippedDate AS VARCHAR(30)) \u2192 F.col('ShippedDate').cast('string')",
+          "Lines 542-551: Detect TotalAmount changes \u2192 .where(old_total != new_total)",
+          "Lines 507, 527, 547: GETDATE() \u2192 F.current_timestamp()",
+          "Lines 508, 528, 548: SYSTEM_USER \u2192 F.lit(os.getenv('USER', 'system'))",
+          "UNION ALL the three change detection DataFrames into one audit log",
+          "Add TODO: # TODO: Trigger trg_AuditOrderChanges has no direct PySpark equivalent. This function must be called explicitly after order updates. Consider Delta Lake Change Data Feed (CDF) for automatic change capture."
+        ],
+        "gotchas_relevant": [
+          "#2 Case-sensitive comparison (line 511 \u2014 OrderStatus values)",
+          "#10 BIT/NULL handling \u2014 ShippedDate NULL comparison (line 531)"
+        ],
+        "limitations_found": [
+          "Trigger has no direct PySpark equivalent \u2014 must be called explicitly or use Delta Lake CDF",
+          "inserted/deleted pseudo-tables (lines 509-510, 529-530, 549-550) \u2014 replaced by old_df/new_df parameters"
+        ],
+        "strategy": "Rewrite as change-capture function. Combine three INSERT blocks into single unioned DataFrame. Add prominent TODO about manual invocation requirement."
+      }
+    }
+  },
+  "cost_so_far": {
+    "discovery": 0.32923399999999997,
+    "planning": 0.44675175,
+    "conversion": 0.0,
+    "validation": 0.0
+  }
+}
