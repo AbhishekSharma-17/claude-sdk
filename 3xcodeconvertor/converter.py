@@ -69,16 +69,16 @@ def main() -> None:
     parser.add_argument(
         "--model",
         type=str,
-        default="opus",
+        default=None,
         choices=["opus", "sonnet", "haiku"],
-        help="Model for conversion (default: opus)",
+        help="Model for conversion (default: from .env SQL2SPARK_MODEL or opus)",
     )
     parser.add_argument(
         "--provider",
         type=str,
-        default="anthropic",
+        default=None,
         choices=["anthropic", "bedrock"],
-        help="LLM provider: anthropic (default) or bedrock",
+        help="LLM provider (default: from .env SQL2SPARK_PROVIDER or anthropic)",
     )
 
     args = parser.parse_args()
@@ -99,11 +99,14 @@ def main() -> None:
         verbose=args.verbose,
         total_budget_usd=args.budget,
         max_parallel_conversions=args.parallel,
-        conversion_model=args.model,
         skip_auto_fix=args.skip_autofix,
-        provider=args.provider,
     )
 
+    # CLI args override .env values (only when explicitly passed)
+    if args.provider:
+        config.provider = args.provider
+    if args.model:
+        config.conversion_model = args.model
     if args.output_dir:
         config.output_dir = args.output_dir
 
@@ -121,12 +124,15 @@ def main() -> None:
     print()
     print("=" * 60)
     print("  sql2spark — SQL to PySpark Converter")
-    print("  Powered by Claude Agent SDK (Opus 4.6)")
+    print("  Powered by Claude Agent SDK")
     print("=" * 60)
     print(f"  Workspace:  {workspace}")
     print(f"  Input:      {config.input_path} ({len(sql_files)} files)")
     print(f"  Output:     {config.output_path}")
-    print(f"  Model:      {config.conversion_model}")
+    print(f"  Provider:   {config.provider_display}")
+    print(f"  Model:      {config.model_display}")
+    print(f"  Validation: {config.validation_model}")
+    print(f"  Auto-fix:   {config.auto_fix_model}")
     print(f"  Budget:     ${config.total_budget_usd:.2f}")
     print(f"  Parallel:   {config.max_parallel_conversions}")
     print(f"  Mode:       {'Interactive' if config.interactive else 'Automated'}")
@@ -135,7 +141,7 @@ def main() -> None:
     if config.skip_auto_fix:
         print(f"  Auto-fix:   Disabled (--skip-autofix)")
     else:
-        print(f"  Auto-fix:   Enabled  (${config.auto_fix_budget_per_file:.2f}/file budget)")
+        print(f"  Phase 5:    Enabled  (${config.auto_fix_budget_per_file:.2f}/file budget)")
     print("=" * 60)
     print()
 

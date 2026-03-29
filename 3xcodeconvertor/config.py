@@ -12,9 +12,9 @@ load_dotenv()
 
 
 _BEDROCK_MODEL_MAP: dict[str, str] = {
-    "opus":   "us.anthropic.claude-opus-4-6",
+    "opus":   "us.anthropic.claude-opus-4-6-v1",
     "sonnet": "us.anthropic.claude-sonnet-4-6",
-    "haiku":  "us.anthropic.claude-haiku-4-5-20251001",
+    "haiku":  "us.anthropic.claude-haiku-4-5-20251001-v1:0",
 }
 
 
@@ -29,7 +29,7 @@ class ConverterConfig:
     knowledge_dir: str = "knowledge"
 
     # Provider: "anthropic" or "bedrock"
-    provider: str = "anthropic"
+    provider: str = field(default_factory=lambda: os.getenv("SQL2SPARK_PROVIDER", "anthropic"))
 
     # AWS Bedrock credentials (only required when provider="bedrock")
     aws_access_key_id: str = field(default_factory=lambda: os.getenv("AWS_ACCESS_KEY_ID", ""))
@@ -37,12 +37,12 @@ class ConverterConfig:
     aws_region: str = field(default_factory=lambda: os.getenv("AWS_REGION", "us-east-1"))
 
     # Models
-    conversion_model: str = "sonnet"
-    validation_model: str = "sonnet"
-    fallback_model: str = "sonnet"
+    conversion_model: str = field(default_factory=lambda: os.getenv("SQL2SPARK_MODEL", "opus"))
+    validation_model: str = field(default_factory=lambda: os.getenv("SQL2SPARK_VALIDATION_MODEL", "sonnet"))
+    fallback_model: str = field(default_factory=lambda: os.getenv("SQL2SPARK_FALLBACK_MODEL", "sonnet"))
 
     # Budget & limits
-    total_budget_usd: float = 50.0
+    total_budget_usd: float = 20.0
     discovery_budget_per_file: float = 1.00
     planning_budget: float = 1.50
     conversion_budget_per_object: float = 2.50
@@ -55,7 +55,7 @@ class ConverterConfig:
     validation_max_turns: int = 10
 
     # Parallelism
-    max_parallel_conversions: int = 3
+    max_parallel_conversions: int = 4
 
     # Modes
     interactive: bool = False
@@ -63,7 +63,7 @@ class ConverterConfig:
     verbose: bool = False
 
     # Auto-fix (Phase 5)
-    auto_fix_model: str = "sonnet"
+    auto_fix_model: str = field(default_factory=lambda: os.getenv("SQL2SPARK_AUTOFIX_MODEL", "sonnet"))
     auto_fix_budget_per_file: float = 0.50
     auto_fix_max_turns: int = 10
     skip_auto_fix: bool = False
@@ -102,7 +102,8 @@ class ConverterConfig:
         if self.provider == "bedrock":
             if not self.aws_access_key_id or not self.aws_secret_access_key:
                 raise ValueError(
-                    "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set for provider=bedrock"
+                    "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set "
+                    "for provider=bedrock. Set in environment or .env file."
                 )
             return {
                 "CLAUDE_CODE_USE_BEDROCK": "1",
@@ -115,6 +116,21 @@ class ConverterConfig:
         if not key:
             raise ValueError("ANTHROPIC_API_KEY not set in environment or .env")
         return {"ANTHROPIC_API_KEY": key}
+
+    @property
+    def provider_display(self) -> str:
+        """Human-readable provider label for banner/logging."""
+        if self.provider == "bedrock":
+            return f"AWS Bedrock ({self.aws_region})"
+        return "Anthropic API"
+
+    @property
+    def model_display(self) -> str:
+        """Human-readable model label showing resolved model ID."""
+        resolved = self.resolve_model(self.conversion_model)
+        if self.provider == "bedrock" and resolved != self.conversion_model:
+            return f"{self.conversion_model} → {resolved}"
+        return self.conversion_model
 
     def resolve_model(self, shorthand: str) -> str:
         """Map shorthand model names to Bedrock model IDs when using Bedrock."""
