@@ -1,33 +1,7 @@
--- ============================================================================
--- E-Commerce Analytics ETL Pipeline
--- Database: ECommerceDB
--- Dialect: T-SQL (SQL Server 2019)
---
--- This script contains 8 objects with heavy cross-dependencies:
---   1. vw_ActiveProducts        (view, standalone)
---   2. fn_CalculateDiscount     (scalar function, standalone)
---   3. fn_GetCustomerTier       (scalar function, standalone)
---   4. usp_StageSalesData       (procedure, uses vw_ActiveProducts)
---   5. usp_BuildCustomerProfile (procedure, uses fn_GetCustomerTier, usp_StageSalesData)
---   6. usp_CalculateRevenue     (procedure, uses fn_CalculateDiscount, usp_StageSalesData)
---   7. usp_GenerateReport       (procedure, uses usp_BuildCustomerProfile, usp_CalculateRevenue)
---   8. trg_AuditOrderChanges    (trigger, references Orders table)
---
--- Dependency Graph:
---   vw_ActiveProducts ──→ usp_StageSalesData ──→ usp_BuildCustomerProfile ──→ usp_GenerateReport
---   fn_GetCustomerTier ──→ usp_BuildCustomerProfile ──↗
---   fn_CalculateDiscount ──→ usp_CalculateRevenue ──↗
---   trg_AuditOrderChanges (standalone trigger)
--- ============================================================================
-
 SET NOCOUNT ON;
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 GO
-
--- ============================================================================
--- OBJECT 1: vw_ActiveProducts (View — standalone, no dependencies)
--- ============================================================================
 
 CREATE VIEW dbo.vw_ActiveProducts
 AS
@@ -53,10 +27,6 @@ WHERE p.IsActive = 1
   AND p.UnitsInStock > 0;
 GO
 
--- ============================================================================
--- OBJECT 2: fn_CalculateDiscount (Scalar Function — standalone)
--- ============================================================================
-
 CREATE FUNCTION dbo.fn_CalculateDiscount
 (
     @OrderAmount DECIMAL(19, 4),
@@ -69,7 +39,6 @@ BEGIN
     DECLARE @DiscountRate DECIMAL(5, 4) = 0.0000;
     DECLARE @FinalDiscount DECIMAL(19, 4);
 
-    -- Base discount by tier
     SET @DiscountRate = CASE @CustomerTier
         WHEN 'Platinum' THEN 0.1500
         WHEN 'Gold'     THEN 0.1000
@@ -78,27 +47,20 @@ BEGIN
         ELSE 0.0000
     END;
 
-    -- Holiday bonus (additional 5%)
     IF @IsHolidaySeason = 1
         SET @DiscountRate = @DiscountRate + 0.0500;
 
-    -- Cap discount at 25%
     IF @DiscountRate > 0.2500
         SET @DiscountRate = 0.2500;
 
     SET @FinalDiscount = @OrderAmount * @DiscountRate;
 
-    -- Minimum discount floor of $1 for orders over $50
     IF @OrderAmount > 50.0000 AND @FinalDiscount < 1.0000
         SET @FinalDiscount = 1.0000;
 
     RETURN @FinalDiscount;
 END;
 GO
-
--- ============================================================================
--- OBJECT 3: fn_GetCustomerTier (Scalar Function — standalone)
--- ============================================================================
 
 CREATE FUNCTION dbo.fn_GetCustomerTier
 (
@@ -127,11 +89,6 @@ BEGIN
 END;
 GO
 
--- ============================================================================
--- OBJECT 4: usp_StageSalesData (Procedure — depends on vw_ActiveProducts)
--- Heavy: CTEs, window functions, temp tables, DATEDIFF, ISNULL, CASE
--- ============================================================================
-
 CREATE PROCEDURE dbo.usp_StageSalesData
     @StartDate DATE,
     @EndDate DATE,
@@ -140,14 +97,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Drop temp table if exists
     IF OBJECT_ID('tempdb..#SalesStaging') IS NOT NULL
         DROP TABLE #SalesStaging;
 
     IF OBJECT_ID('tempdb..#DailySummary') IS NOT NULL
         DROP TABLE #DailySummary;
 
-    -- CTE 1: Base orders with product enrichment
     ;WITH BaseOrders AS (
         SELECT
             o.OrderID,
@@ -171,7 +126,6 @@ BEGIN
           AND o.OrderStatus <> 'Cancelled'
           AND od.Quantity * od.UnitPrice >= @MinOrderAmount
     ),
-    -- CTE 2: Ranked orders per customer
     RankedOrders AS (
         SELECT
             bo.*,
@@ -224,11 +178,9 @@ BEGIN
     INTO #SalesStaging
     FROM RankedOrders ro;
 
-    -- Create index on staging table
     CREATE CLUSTERED INDEX CX_SalesStaging_CustomerID ON #SalesStaging(CustomerID);
     CREATE NONCLUSTERED INDEX IX_SalesStaging_OrderDate ON #SalesStaging(OrderDate) INCLUDE (LineTotal, CategoryName);
 
-    -- Build daily summary from staging
     SELECT
         OrderDateOnly AS SummaryDate,
         COUNT(DISTINCT OrderID) AS OrderCount,
@@ -247,17 +199,10 @@ BEGIN
     GROUP BY OrderDateOnly
     ORDER BY OrderDateOnly;
 
-    -- Return both result sets
     SELECT * FROM #SalesStaging ORDER BY OrderDate DESC;
     SELECT * FROM #DailySummary ORDER BY SummaryDate;
 END;
 GO
-
--- ============================================================================
--- OBJECT 5: usp_BuildCustomerProfile
--- Depends on: fn_GetCustomerTier, usp_StageSalesData (uses its temp tables)
--- Heavy: cursor pattern (for dynamic tier calculation), DATEDIFF, aggregations
--- ============================================================================
 
 CREATE PROCEDURE dbo.usp_BuildCustomerProfile
     @StartDate DATE,
@@ -267,13 +212,11 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- First, stage the sales data
     EXEC dbo.usp_StageSalesData @StartDate, @EndDate;
 
     IF OBJECT_ID('tempdb..#CustomerProfile') IS NOT NULL
         DROP TABLE #CustomerProfile;
 
-    -- Build customer profiles from staged data
     SELECT
         c.CustomerID,
         c.CustomerName,
@@ -304,11 +247,8 @@ BEGIN
         c.CustomerID, c.CustomerName, c.Email,
         c.Region, c.RegistrationDate;
 
-    -- Recalculate tiers if requested
     IF @RecalculateTiers = 1
     BEGIN
-        -- Use cursor to calculate tier for each customer
-        -- (demonstrates cursor pattern — would be vectorized in PySpark)
         DECLARE @CustID INT, @Spend DECIMAL(19, 4), @Orders INT, @AgeDays INT;
         DECLARE @NewTier VARCHAR(20);
 
@@ -334,7 +274,6 @@ BEGIN
         DEALLOCATE tier_cursor;
     END;
 
-    -- Add ranking columns
     SELECT
         cp.*,
         ROW_NUMBER() OVER (ORDER BY cp.TotalSpend DESC) AS SpendRank,
@@ -347,12 +286,6 @@ BEGIN
 END;
 GO
 
--- ============================================================================
--- OBJECT 6: usp_CalculateRevenue
--- Depends on: fn_CalculateDiscount, usp_StageSalesData (uses its temp tables)
--- Heavy: PIVOT, DATEDIFF, complex aggregations, CASE with math
--- ============================================================================
-
 CREATE PROCEDURE dbo.usp_CalculateRevenue
     @StartDate DATE,
     @EndDate DATE,
@@ -361,13 +294,11 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Stage the base data
     EXEC dbo.usp_StageSalesData @StartDate, @EndDate;
 
     IF OBJECT_ID('tempdb..#RevenueCalc') IS NOT NULL
         DROP TABLE #RevenueCalc;
 
-    -- Calculate revenue metrics with discount application
     SELECT
         s.OrderID,
         s.CustomerID,
@@ -395,7 +326,6 @@ BEGIN
     INTO #RevenueCalc
     FROM #SalesStaging s;
 
-    -- Monthly revenue summary
     SELECT
         OrderYear,
         OrderMonth,
@@ -418,7 +348,6 @@ BEGIN
     GROUP BY OrderYear, OrderMonth
     ORDER BY OrderYear, OrderMonth;
 
-    -- Category revenue pivot
     SELECT *
     FROM (
         SELECT CategoryName, OrderMonth, NetRevenue
@@ -430,7 +359,6 @@ BEGIN
     ) AS pvt
     ORDER BY CategoryName;
 
-    -- Projections (if requested)
     IF @IncludeProjections = 1
     BEGIN
         ;WITH MonthlyTrend AS (
@@ -462,12 +390,6 @@ BEGIN
 END;
 GO
 
--- ============================================================================
--- OBJECT 7: usp_GenerateReport
--- Depends on: usp_BuildCustomerProfile, usp_CalculateRevenue
--- Heavy: calls other procs, MERGE pattern, complex aggregations, JSON output
--- ============================================================================
-
 CREATE PROCEDURE dbo.usp_GenerateReport
     @StartDate DATE,
     @EndDate DATE,
@@ -479,11 +401,9 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
 
-        -- Run dependent procedures
         EXEC dbo.usp_BuildCustomerProfile @StartDate, @EndDate;
         EXEC dbo.usp_CalculateRevenue @StartDate, @EndDate, @IncludeProjections = 1;
 
-        -- Executive summary
         IF @ReportType IN ('Full', 'Summary')
         BEGIN
             SELECT
@@ -500,7 +420,6 @@ BEGIN
                 (SELECT COUNT(DISTINCT CategoryName) FROM #SalesStaging) AS CategoriesActive;
         END;
 
-        -- Top customers
         IF @ReportType IN ('Full', 'Customers')
         BEGIN
             SELECT TOP 20
@@ -525,7 +444,6 @@ BEGIN
             ORDER BY cp.TotalSpend DESC;
         END;
 
-        -- Category performance
         IF @ReportType IN ('Full', 'Categories')
         BEGIN
             SELECT
@@ -544,7 +462,6 @@ BEGIN
             ORDER BY Revenue DESC;
         END;
 
-        -- Log report generation
         INSERT INTO dbo.ReportLog (ReportType, StartDate, EndDate, GeneratedAt, GeneratedBy)
         VALUES (@ReportType, @StartDate, @EndDate, GETDATE(), SYSTEM_USER);
 
@@ -565,11 +482,6 @@ BEGIN
     END CATCH;
 END;
 GO
-
--- ============================================================================
--- OBJECT 8: trg_AuditOrderChanges (Trigger — standalone, references Orders)
--- Demonstrates: INSERTED/DELETED pseudo-tables, COLUMNS_UPDATED
--- ============================================================================
 
 CREATE TRIGGER dbo.trg_AuditOrderChanges
 ON dbo.Orders
@@ -598,7 +510,6 @@ BEGIN
     INNER JOIN deleted d ON i.OrderID = d.OrderID
     WHERE i.OrderStatus <> d.OrderStatus;
 
-    -- Track shipping date changes
     INSERT INTO dbo.OrderAuditLog
     (
         OrderID,
@@ -619,7 +530,6 @@ BEGIN
     INNER JOIN deleted d ON i.OrderID = d.OrderID
     WHERE ISNULL(i.ShippedDate, '1900-01-01') <> ISNULL(d.ShippedDate, '1900-01-01');
 
-    -- Track total amount changes (financial audit)
     INSERT INTO dbo.OrderAuditLog
     (
         OrderID,
