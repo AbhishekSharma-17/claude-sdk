@@ -468,33 +468,55 @@ Check:
 
 ### Phase 5: Auto-Fix & Developer Action Items
 
-**What it does**: Automatically fixes mechanical HIGH/ERROR issues in generated code, and produces a categorized developer action items report for everything that needs human attention.
+**What it does**: Automatically fixes HIGH/ERROR issues in generated code using the validator's exact diagnostics, and produces a categorized developer action items report for everything that needs human attention.
 
 **Model**: Sonnet | **Budget**: $0.50/file | **Max turns**: 10
 
 **Skip with**: `--skip-autofix` flag (issues are still reported, just not fixed)
 
+**Design philosophy -- optimistic auto-fix with safety net**:
+
+The validator (Phase 4) already does the hard work: it identifies the exact issue, the exact line number, and often states the exact fix ("move `orders_df.unpersist()` to AFTER `_step9a_build_payload()` completes"). Phase 5 hands this to Claude and says "apply these fixes."
+
+Instead of whitelisting known fixable patterns (which misses novel issues), we use a **blacklist approach**: try to auto-fix ALL HIGH/ERROR issues **except** those matching known manual patterns (cursor rewrites, dynamic SQL, MERGE logic). The safety net catches bad fixes:
+- `ast.parse()` -- reverts immediately if the fix introduces a SyntaxError
+- Truncation guard -- reverts if the fixed file is >50% shorter than the original
+
 **How it works**:
 
-1. **Issue classification**: Each validation issue is classified into one of 4 categories:
+1. **Issue classification** (blacklist-based, optimistic):
 
    | Category | Criteria | Auto-fixable? | Examples |
    |----------|----------|---------------|----------|
-   | `auto_fix` | HIGH/ERROR + known pattern | Yes | `.unionAll()`, SparkSession config, bare `col()`, `DecimalType` cast |
-   | `infrastructure` | Any severity + infra keyword | No | Delta Lake CDF, JDBC, streaming, HDFS/S3 paths |
-   | `requires_manual` | HIGH/ERROR + not auto-fix + not infra | No | Cursor rewrite, dynamic SQL, MERGE, cross-DB calls |
-   | `recommended_review` | MEDIUM/WARNING/LOW/INFO | No | Null ordering, case sensitivity, OOM risk |
+   | `infrastructure` | Message matches infra pattern | No | Delta table missing, saveAsTable to non-existent table, JDBC, HDFS/S3, streaming, Kafka |
+   | `requires_manual` | HIGH/ERROR + matches manual pattern | No | Cursor rewrite, dynamic SQL, sp_executesql, MERGE, transaction rollback, recursive CTE |
+   | `auto_fix` | **HIGH/ERROR + NOT infra + NOT manual** | **Yes** | Everything else -- unpersist ordering, constructor mismatch, deprecated API, missing config, wrong return type, bare `col()` |
+   | `recommended_review` | MEDIUM/WARNING/LOW/INFO | No | Null ordering, case sensitivity, OOM risk, style guide items |
 
-2. **Auto-fix per file**: For files with auto-fixable issues:
+   Key insight: **any HIGH/ERROR issue the validator can describe precisely enough for a human to fix, Claude can also fix** -- as long as it has the file content, the issue description, and the dependency context.
+
+2. **Context-aware auto-fix**: Phase 5 receives the **same dependency context** that Phase 4 used for validation (function signatures, class constructors from dependency files). This enables Claude to fix cross-file issues:
+
+   ```
+   ## DEPENDENCY FILES (real signatures)
+   ### usp_awlt_converter_log.py
+   class RunLogger:
+       def __init__(self, spark: SparkSession, run_id: str, proc_name: str) -> None
+       def log_step(self, step_name: str, step_status: str, ...) -> None
+   ```
+
+   With this context, Claude can fix "ConverterLogger() takes 0 args but RunLogger needs 3" by updating the constructor call to match the real signature.
+
+3. **Auto-fix per file**: For files with auto-fixable issues:
    - Read original file content (save as backup)
-   - Build prompt with file content + numbered list of specific issues to fix
+   - Build prompt with: file content + numbered issue list + dependency signatures
    - Claude fixes ONLY the listed issues (no refactoring)
    - Parse response: JSON summary + complete Python code block
    - **Safety check**: `ast.parse(fixed_content)` -- if SyntaxError, restore original immediately
    - **Truncation guard**: If fixed file is >50% shorter than original, revert (Claude truncated)
    - Status: `FIXED`, `PARTIAL`, `REVERTED`, or `SKIPPED`
 
-3. **Developer action items**: Every issue is classified into one of 4 buckets with prescriptive `how_to_fix` instructions:
+4. **Developer action items**: Every issue is classified into one of 4 buckets with prescriptive `how_to_fix` instructions:
 
 **Prescriptive `how_to_fix` lookup** (built-in patterns):
 
@@ -507,10 +529,20 @@ Check:
 | Case-insensitive | Use `F.lower(col) == F.lower(F.lit(val))` or `.ilike()` for LIKE |
 | Bare `col()` | Add `F.` prefix: `col(...)` --> `F.col(...)` |
 | `.collect()` | Use `.first()[col]` or `.agg(F.max(...)).collect()[0][0]` for single values |
-| Delta Lake CDF | `ALTER TABLE ... SET TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true')` |
+| Delta table / saveAsTable | Infrastructure: create Delta/Hive table or register in Spark catalog |
 | Cursor | Rewrite as `F.lag/F.lead` window function or `groupBy().agg()` |
 | Dynamic SQL | Enumerate values and use `F.when()` chain or dict-dispatch pattern |
 | MERGE | Use Delta Lake `MERGE INTO` or delete-then-union pattern |
+
+**What Phase 5 can fix that a whitelist approach would miss**:
+
+| Issue | Old (whitelist) | New (blacklist) |
+|---|---|---|
+| `orders_df.unpersist()` called before it's used | `requires_manual` | **`auto_fix`** -- Claude moves the line |
+| Constructor args mismatch (0 vs 3 args) | `requires_manual` | **`auto_fix`** -- Claude updates call with dep context |
+| Wrong column name in join condition | `requires_manual` | **`auto_fix`** -- Claude corrects the column name |
+| Missing import for a used class | `requires_manual` | **`auto_fix`** -- Claude adds the import |
+| Delta table doesn't exist | `requires_manual` | **`infrastructure`** -- correctly classified now |
 
 **Example `developer_action_items` in report.json**:
 
@@ -520,10 +552,17 @@ Check:
     "auto_fixed": [
       {
         "category": "auto_fixed",
-        "priority": "critical",
-        "file": "audit_order_changes.py",
-        "description": ".unionAll() deprecated since PySpark 2.0",
-        "how_to_fix": "Replace `.unionAll(df2)` with `.union(df2)`."
+        "priority": "high",
+        "file": "usp_awlt_one_csv_converter_test_1k.py",
+        "description": "orders_df.unpersist() at line 1120 called before _step9a_build_payload() uses it at line 1134",
+        "how_to_fix": "Moved orders_df.unpersist() to after _step9a_build_payload() completes."
+      },
+      {
+        "category": "auto_fixed",
+        "priority": "high",
+        "file": "usp_awlt_one_csv_converter_test_1k.py",
+        "description": "ConverterLogger() stub takes 0 args but real RunLogger needs (spark, run_id, proc_name)",
+        "how_to_fix": "Updated constructor call to RunLogger(spark, run_id, proc_name) using dependency signatures."
       }
     ],
     "requires_manual": [
@@ -539,26 +578,26 @@ Check:
       {
         "category": "infrastructure",
         "priority": "high",
-        "file": "awlt_one_csv_converter_test_1k.py",
-        "description": "Source tables (SalesLT.*) must exist as Spark tables/DataFrames",
-        "how_to_fix": "Set up JDBC source or load Parquet/Delta tables: spark.read.parquet('path/to/SalesOrderHeader')"
+        "file": "usp_awlt_converter_log.py",
+        "description": "Writes to Delta table 'dbo.AWLT_Converter_RunLog' but table does not exist in Spark catalog",
+        "how_to_fix": "Create the Delta table in the Spark metastore or register via spark.sql('CREATE TABLE IF NOT EXISTS ...')"
       }
     ],
     "recommended_review": [
       {
         "category": "recommended_review",
         "priority": "medium",
-        "file": "awlt_one_csv_converter_test_1k.py",
+        "file": "usp_awlt_one_csv_converter_test_1k.py",
         "description": ".collect() found -- may cause OOM on large datasets",
         "how_to_fix": "Use .first()[col] or .agg(F.max(...)).collect()[0][0] for single values.",
-        "line": 245
+        "line": 813
       }
     ],
     "todos_in_code": [
-      "awlt_one_csv_converter_test_1k.py: # TODO: cursor at lines 918-943 needs manual rewrite",
-      "awlt_one_csv_converter_test_1k.py: # TODO: PIVOT columns must be known at runtime"
+      "usp_awlt_one_csv_converter_test_1k.py: # TODO: Dynamic SQL via sp_executesql at SQL lines 931-934",
+      "usp_awlt_one_csv_converter_test_1k.py: # TODO: Cursor at SQL lines 918-943 needs manual rewrite"
     ],
-    "summary": "1 issue auto-fixed. 2 require manual code changes. 1 needs infrastructure setup. 5 flagged for review. 3 TODOs remain."
+    "summary": "2 issues auto-fixed. 1 requires manual rewrite. 1 needs infrastructure setup. 18 flagged for review. 11 TODOs remain."
   }
 }
 ```
