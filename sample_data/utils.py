@@ -32,7 +32,7 @@ def chunk_list(lst: list, size: int) -> list:
     return [lst[i:i + size] for i in range(0, len(lst), size)]
 
 
-# ERROR: this function has a bug
+# FIXED: this function has a bug
 def calculate_percentage(part: float, total: float) -> float:
     """Calculate percentage."""
-    return part / total  # BUG: missing * 100
+    return (part / total) * 100
