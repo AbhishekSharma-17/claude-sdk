@@ -68,6 +68,9 @@ class ConverterConfig:
     auto_fix_max_turns: int = 10
     skip_auto_fix: bool = False
 
+    # Runtime override: set by orchestrator for per-script pyspark output
+    _pyspark_output_dir: Path | None = field(default=None, repr=False)
+
     # Retry
     max_retries: int = 3
     retry_backoff_base: float = 2.0
@@ -88,12 +91,44 @@ class ConverterConfig:
     def knowledge_path(self) -> Path:
         return self.workspace / self.knowledge_dir
 
+    def script_output_dir(self, sql_filename: str) -> Path:
+        """Per-script output root: output/<script_name_without_ext>/"""
+        stem = Path(sql_filename).stem
+        return self.output_path / stem
+
+    def pyspark_dir(self, sql_filename: str) -> Path:
+        """Per-script PySpark code dir: output/<script>/pyspark/"""
+        return self.script_output_dir(sql_filename) / "pyspark"
+
+    def reports_dir(self, sql_filename: str) -> Path:
+        """Per-script reports dir: output/<script>/reports/"""
+        return self.script_output_dir(sql_filename) / "reports"
+
+    def checkpoint_file(self, sql_filename: str) -> Path:
+        return self.reports_dir(sql_filename) / ".checkpoint.json"
+
+    def report_file(self, sql_filename: str) -> Path:
+        return self.reports_dir(sql_filename) / "report.json"
+
+    def discovery_file(self, sql_filename: str) -> Path:
+        return self.reports_dir(sql_filename) / "discovery.json"
+
+    def conversion_plan_file(self, sql_filename: str) -> Path:
+        return self.reports_dir(sql_filename) / "conversion_plan.json"
+
+    @property
+    def pyspark_output_dir(self) -> Path:
+        """Where conversion phase writes .py files. Set by orchestrator per-script."""
+        return self._pyspark_output_dir or self.output_path
+
     @property
     def checkpoint_path(self) -> Path:
+        """Legacy single-file checkpoint (used when only 1 SQL file)."""
         return self.output_path / ".checkpoint.json"
 
     @property
     def report_path(self) -> Path:
+        """Legacy single-file report (used when only 1 SQL file)."""
         return self.output_path / "report.json"
 
     @property

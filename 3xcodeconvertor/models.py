@@ -422,6 +422,15 @@ class CostBreakdown(BaseModel):
         return self.discovery + self.planning + self.conversion + self.validation + self.auto_fix
 
 
+class PhaseTimings(BaseModel):
+    discovery_seconds: float = 0.0
+    planning_seconds: float = 0.0
+    conversion_seconds: float = 0.0
+    validation_seconds: float = 0.0
+    auto_fix_seconds: float = 0.0
+    total_seconds: float = 0.0
+
+
 # ── Phase 5: Auto-Fix Models ──────────────────────────────────────────────────
 
 
@@ -497,6 +506,7 @@ class ConversionReport(BaseModel):
     total_duration_ms: int = 0
     file_complexity: str = ""
     cost_breakdown: CostBreakdown = Field(default_factory=CostBreakdown)
+    phase_timings: PhaseTimings = Field(default_factory=PhaseTimings)
     objects: list[ConversionResult] = Field(default_factory=list)
     validation_issues: list[ValidationIssue] = Field(default_factory=list)
     todos: list[str] = Field(default_factory=list)

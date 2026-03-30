@@ -138,7 +138,7 @@ async def _convert_single_object(
 
     obj, inv = obj_info
     output_filename = _to_snake_case(name) + ".py"
-    output_path = config.output_path / output_filename
+    output_path = config.pyspark_output_dir / output_filename
 
     # Build dependency context
     dep_context = _build_dependency_context(obj.references, registry)
@@ -247,7 +247,7 @@ async def _convert_level_interactive(
 
         obj, inv = obj_info
         output_filename = _to_snake_case(name) + ".py"
-        output_path = config.output_path / output_filename
+        output_path = config.pyspark_output_dir / output_filename
         dep_context = _build_dependency_context(obj.references, registry)
 
         instructions = ""

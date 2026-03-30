@@ -690,20 +690,22 @@ The SDK's Agent tool spawns sub-agents that Claude controls. For our use case, t
 
 | Feature | Where | Why |
 |---------|-------|-----|
-| `query()` | Phases 1-4 (automated) | Stateless one-shot for independent tasks |
+| `query()` | Phases 1-5 (automated) | Stateless one-shot for independent tasks |
 | `ClaudeSDKClient` | Phase 3 (interactive) | Multi-turn for human-in-the-loop |
 | `output_format` | Phases 1, 2 | Guaranteed structured JSON responses |
-| `allowed_tools` | All phases | Per-phase tool restriction |
+| `allowed_tools` | All phases | Per-phase tool restriction (Phase 1: Read-only, Phase 3: Read+Write+Bash, Phase 5: Read+Write) |
 | `mcp_servers` | Phases 1, 3, 4 | Custom tools (sql_prescan, validate_pyspark_syntax) |
 | `env` | All phases | Provider switching (Anthropic/Bedrock) |
 | `@tool()` decorator | tools.py | Define custom MCP tools |
 | `create_sdk_mcp_server()` | tools.py | Package tools into MCP server |
-| `max_turns` | All phases | Prevent runaway tool loops |
-| `max_budget_usd` | All phases | Per-phase cost caps |
+| `max_turns` | All phases | Prevent runaway tool loops (Phase 3: 25, Phase 5: 10) |
+| `max_budget_usd` | All phases | Per-phase cost caps (Phase 3: $2.50/obj, Phase 5: $0.50/file) |
 | `permission_mode="bypassPermissions"` | All phases | Automated mode, no interactive approvals |
 | `AskUserQuestion` tool | Phase 3 interactive | Human-in-the-loop for ambiguous patterns |
 | `fallback_model` | Phase 3 | Falls back to Sonnet if Opus unavailable |
 | `Read` tool offset/limit | Phase 1, 3 | Handle large files without exceeding context |
+| `AssistantMessage` / `TextBlock` streaming | Phase 5 | Collect Claude's fix response (JSON summary + Python code block) |
+| Dep context reuse (Phase 4 → 5) | Phase 5 | Same dependency signatures injected for cross-file fix accuracy |
 
 ---
 

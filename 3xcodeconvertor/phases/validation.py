@@ -33,6 +33,7 @@ from models import (
     CostBreakdown,
     DeveloperActionItems,
     FileInventory,
+    PhaseTimings,
     ValidationIssue,
     ValidationResult,
 )
@@ -125,6 +126,7 @@ def generate_report(
     file_complexity: str,
     auto_fix_results: list[AutoFixResult] | None = None,
     developer_action_items: DeveloperActionItems | None = None,
+    phase_timings: PhaseTimings | None = None,
 ) -> ConversionReport:
     """Generate the final conversion report.
 
@@ -160,6 +162,7 @@ def generate_report(
         total_duration_ms=total_duration,
         file_complexity=file_complexity,
         cost_breakdown=cost_breakdown,
+        phase_timings=phase_timings or PhaseTimings(),
         objects=conversion_results,
         validation_issues=all_issues,
         todos=[],  # populated by orchestrator via _collect_todos()

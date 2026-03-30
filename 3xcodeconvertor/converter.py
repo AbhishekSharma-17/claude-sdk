@@ -168,6 +168,7 @@ def main() -> None:
     print(f"  Total cost:        ${report.total_cost_usd:.4f}")
 
     cb = report.cost_breakdown
+    pt = report.phase_timings
     print(
         f"  Cost breakdown:    discovery ${cb.discovery:.4f} | "
         f"planning ${cb.planning:.4f} | "
@@ -175,6 +176,14 @@ def main() -> None:
         f"validation ${cb.validation:.4f}"
         + (f" | auto_fix ${cb.auto_fix:.4f}" if cb.auto_fix else "")
     )
+    print(
+        f"  Time breakdown:    discovery {pt.discovery_seconds:.1f}s | "
+        f"planning {pt.planning_seconds:.1f}s | "
+        f"conversion {pt.conversion_seconds:.1f}s | "
+        f"validation {pt.validation_seconds:.1f}s"
+        + (f" | auto_fix {pt.auto_fix_seconds:.1f}s" if pt.auto_fix_seconds else "")
+    )
+    print(f"  Total time:        {pt.total_seconds:.1f}s")
 
     if report.validation_issues:
         print(f"  Validation issues: {len(report.validation_issues)}")
@@ -193,7 +202,14 @@ def main() -> None:
     if ai.summary:
         print(f"\n  Action summary: {ai.summary}")
 
-    print(f"\n  Report: {config.report_path}")
+    # Show per-script output paths
+    primary_sql = sql_files[0]
+    script_dir = config.script_output_dir(primary_sql.name)
+    report_file = config.report_file(primary_sql.name)
+    print(f"\n  Output:  {script_dir}")
+    print(f"    PySpark: {config.pyspark_dir(primary_sql.name)}")
+    print(f"    Reports: {config.reports_dir(primary_sql.name)}")
+    print(f"    Report:  {report_file}")
     print("=" * 60)
 
     if report.failed > 0:
