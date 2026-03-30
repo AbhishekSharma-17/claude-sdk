@@ -188,11 +188,17 @@ def main() -> None:
     if report.validation_issues:
         print(f"  Validation issues: {len(report.validation_issues)}")
 
-    # Confidence scores
+    # Completion & confidence scores
     if report.confidence_scores:
-        print(f"\n  Confidence:        {report.overall_confidence:.0f}% overall")
+        print(f"\n  Completion:        {report.overall_completion:.0f}%")
+        print(f"  Confidence:        {report.overall_confidence:.0f}%")
+        print()
         for cs in report.confidence_scores:
-            print(f"    {cs.file}: {cs.score:.0f}% [{cs.grade}]")
+            print(f"    {cs.file}: {cs.completion_pct:.0f}% complete, {cs.confidence_pct:.0f}% confidence [{cs.grade}]")
+            for h in cs.highlights:
+                print(f"      + {h}")
+            for n in cs.needs_attention:
+                print(f"      ! {n}")
 
     ai = report.developer_action_items
     if ai.auto_fixed:

@@ -285,15 +285,26 @@ async def run_pipeline(config: ConverterConfig) -> ConversionReport:
         inventories=inventories,
         todos_in_code=todos_in_code,
     )
+    overall_completion = (
+        round(sum(c.completion_pct for c in confidence_scores) / len(confidence_scores), 0)
+        if confidence_scores else 0.0
+    )
     overall_confidence = (
-        round(sum(c.score for c in confidence_scores) / len(confidence_scores), 1)
+        round(sum(c.confidence_pct for c in confidence_scores) / len(confidence_scores), 0)
         if confidence_scores else 0.0
     )
 
-    logger.info("\nConfidence scores:")
+    logger.info("\nConversion Quality:")
     for cs in confidence_scores:
-        logger.info("  %s: %.0f%% [%s]", cs.file, cs.score, cs.grade)
-    logger.info("  Overall: %.0f%%", overall_confidence)
+        logger.info(
+            "  %s: %.0f%% complete, %.0f%% confidence [%s]",
+            cs.file, cs.completion_pct, cs.confidence_pct, cs.grade,
+        )
+        for h in cs.highlights:
+            logger.info("    + %s", h)
+        for n in cs.needs_attention:
+            logger.info("    ! %s", n)
+    logger.info("  Overall: %.0f%% complete, %.0f%% confidence", overall_completion, overall_confidence)
 
     # -- Generate & Save Report -------------------------------------------------
     timings.total_seconds = round(time.monotonic() - start_time, 1)
@@ -308,6 +319,7 @@ async def run_pipeline(config: ConverterConfig) -> ConversionReport:
         phase_timings=timings,
     )
     report.confidence_scores = confidence_scores
+    report.overall_completion = overall_completion
     report.overall_confidence = overall_confidence
 
     report_json = report.model_dump_json(indent=2)
@@ -336,9 +348,10 @@ async def run_pipeline(config: ConverterConfig) -> ConversionReport:
         timings.total_seconds, timings.discovery_seconds, timings.planning_seconds,
         timings.conversion_seconds, timings.validation_seconds, timings.auto_fix_seconds,
     )
-    logger.info("  Confidence: %.0f%% overall", overall_confidence)
-    for cs in confidence_scores:
-        logger.info("    %s: %.0f%% [%s]", cs.file, cs.score, cs.grade)
+    logger.info(
+        "  Quality: %.0f%% complete, %.0f%% confidence",
+        overall_completion, overall_confidence,
+    )
     if ai.auto_fixed:
         logger.info("  Auto-fixed: %d issues", len(ai.auto_fixed))
     if ai.requires_manual:
@@ -371,7 +384,7 @@ def _collect_todos(pyspark_dir: Path) -> list[str]:
     return todos
 
 
-# -- Confidence Scoring --------------------------------------------------------
+# -- Confidence & Completion Scoring -------------------------------------------
 
 
 def _score_to_grade(score: float) -> str:
@@ -395,12 +408,13 @@ def _compute_confidence_scores(
     inventories: list[FileInventory],
     todos_in_code: list[str],
 ) -> list[FileConfidence]:
-    """Compute a 0-100 confidence score for each output file.
+    """Compute completion % and confidence % for each output file.
 
-    Scoring:
-      Base: 100 points
-      Deductions for remaining issues, known limitations, TODOs
-      Recovery for auto-fixed issues
+    Positive-first approach: starts by recognizing what was converted
+    successfully, then notes what needs attention.
+
+    Completion = how much of the conversion is done (code written + working)
+    Confidence = how confident we are the output is correct
     """
     # Build lookup: which SQL objects have cursors / dynamic SQL
     has_cursor: set[str] = set()
@@ -430,106 +444,164 @@ def _compute_confidence_scores(
 
     for vr in validation_results:
         basename = Path(vr.file_path).name
-        score = 100.0
-        factors: list[str] = []
+        highlights: list[str] = []
+        needs_attention: list[str] = []
 
-        # Syntax check
-        if not vr.syntax_valid:
-            score -= 30
-            factors.append("-30: Python syntax invalid")
+        # ── Completion % (how much is done) ──────────────────────────
+        # Additive: build up from what's working
+        completion = 0.0
 
-        # Remaining validation issues by severity
+        # File created and written
+        completion += 40.0
+        highlights.append("SQL-to-PySpark conversion completed")
+
+        # Syntax valid
+        if vr.syntax_valid:
+            completion += 25.0
+            highlights.append("Python syntax valid (ast.parse passed)")
+        else:
+            needs_attention.append("Python syntax errors -- code needs manual fix")
+
+        # PySpark correctness review passed
+        if vr.pyspark_correct:
+            completion += 15.0
+            highlights.append("PySpark logic validated by AI review")
+
+        # Dependencies resolved
+        if vr.dependencies_resolved:
+            completion += 5.0
+            highlights.append("Cross-file dependencies verified")
+
+        # TODOs reduce completion (each TODO = incomplete section)
+        file_todos = todo_count.get(basename, 0)
+        if file_todos == 0:
+            completion += 5.0
+        else:
+            todo_deduct = min(file_todos * 3, 15)
+            completion -= todo_deduct
+            needs_attention.append(
+                f"{file_todos} TODO(s) in code -- sections marked for manual completion"
+            )
+
+        # Manual-required issues reduce completion
+        manual_issues = sum(
+            1 for iss in vr.issues
+            if iss.severity.upper() in ("ERROR", "HIGH")
+            and any(kw in iss.message.lower() for kw in (
+                "cursor", "dynamic sql", "sp_executesql", "merge", "recursive",
+            ))
+        )
+        if manual_issues:
+            completion -= manual_issues * 5
+            needs_attention.append(
+                f"{manual_issues} section(s) need manual rewrite "
+                "(cursor/dynamic SQL/MERGE -- no Spark equivalent)"
+            )
+
+        # Auto-fix recovery
+        afr = fix_map.get(basename)
+        if afr and afr.issues_fixed > 0:
+            completion += min(afr.issues_fixed * 2, 10)
+            highlights.append(f"{afr.issues_fixed} issue(s) automatically fixed by AI")
+        if afr and afr.was_reverted:
+            needs_attention.append(
+                "Auto-fix was attempted but reverted (fix broke syntax) -- manual fix needed"
+            )
+
+        completion = max(0.0, min(100.0, round(completion, 0)))
+
+        # ── Confidence % (how correct is it) ─────────────────────────
+        # Starts high for valid code, reduced by issues that affect correctness
+        confidence = 0.0
+
+        # Syntax valid = strong base
+        if vr.syntax_valid:
+            confidence += 50.0
+
+        # PySpark review passed
+        if vr.pyspark_correct:
+            confidence += 20.0
+
+        # Cross-file deps validated
+        if vr.dependencies_resolved:
+            confidence += 10.0
+
+        # Issue impact on confidence
         error_count = 0
         high_count = 0
         medium_count = 0
-        low_count = 0
         infra_count = 0
 
         for issue in vr.issues:
             sev = issue.severity.upper()
             msg = issue.message.lower()
-
-            # Check if infrastructure issue
             infra_keywords = (
                 "delta", "saveastable", "catalog", "jdbc", "hdfs",
                 "s3", "adls", "streaming", "kafka", "infrastructure",
             )
             if any(kw in msg for kw in infra_keywords):
                 infra_count += 1
-                continue
-
-            if sev == "ERROR":
+            elif sev == "ERROR":
                 error_count += 1
             elif sev == "HIGH":
                 high_count += 1
             elif sev in ("MEDIUM", "WARNING"):
                 medium_count += 1
-            else:
-                low_count += 1
 
-        if error_count:
-            deduct = error_count * 12
-            score -= deduct
-            factors.append(f"-{deduct}: {error_count} ERROR issue(s) remaining")
-        if high_count:
-            deduct = high_count * 8
-            score -= deduct
-            factors.append(f"-{deduct}: {high_count} HIGH issue(s) remaining")
+        # No errors = big confidence boost
+        if error_count == 0 and high_count == 0:
+            confidence += 15.0
+            highlights.append("No ERROR or HIGH severity issues")
+        else:
+            if error_count:
+                confidence -= error_count * 8
+                needs_attention.append(
+                    f"{error_count} ERROR issue(s) -- critical, likely produces wrong output"
+                )
+            if high_count:
+                confidence -= high_count * 5
+                needs_attention.append(
+                    f"{high_count} HIGH issue(s) -- needs human review before production"
+                )
+
         if medium_count:
-            deduct = medium_count * 3
-            score -= deduct
-            factors.append(f"-{deduct}: {medium_count} MEDIUM issue(s)")
-        if low_count:
-            deduct = low_count * 1
-            score -= deduct
-            factors.append(f"-{deduct}: {low_count} LOW/INFO issue(s)")
-        if infra_count:
-            deduct = infra_count * 5
-            score -= deduct
-            factors.append(f"-{deduct}: {infra_count} infrastructure setup needed")
+            confidence -= min(medium_count * 2, 10)
+            needs_attention.append(
+                f"{medium_count} MEDIUM issue(s) -- recommended review"
+            )
 
-        # Known limitations (cursor / dynamic SQL)
+        if infra_count:
+            needs_attention.append(
+                f"{infra_count} infrastructure item(s) -- "
+                "external setup needed (Delta tables, catalog registration, etc.)"
+            )
+            # Infra doesn't reduce confidence (code is correct, infra just needs setup)
+
+        # Auto-fix recovery for confidence
+        if afr and afr.issues_fixed > 0 and not afr.was_reverted:
+            confidence += min(afr.issues_fixed * 3, 10)
+
+        # Known limitations (informational, slight confidence reduction)
         file_lower = basename.lower()
         cursor_hit = any(name in file_lower for name in has_cursor)
         dynamic_hit = any(name in file_lower for name in has_dynamic_sql)
+        if cursor_hit or dynamic_hit:
+            confidence -= 5
+            # Already noted in needs_attention via manual_issues above
 
-        if cursor_hit:
-            score -= 10
-            factors.append("-10: contains cursor logic (no Spark equivalent)")
-        if dynamic_hit:
-            score -= 8
-            factors.append("-8: contains dynamic SQL (runtime-dependent)")
+        confidence = max(0.0, min(100.0, round(confidence, 0)))
 
-        # TODOs in this file
-        file_todos = todo_count.get(basename, 0)
-        if file_todos:
-            deduct = file_todos * 2
-            score -= deduct
-            factors.append(f"-{deduct}: {file_todos} TODO(s) in generated code")
-
-        # Auto-fix result
-        afr = fix_map.get(basename)
-        if afr:
-            if afr.was_reverted:
-                score -= 15
-                factors.append("-15: auto-fix attempted but reverted (syntax broke)")
-            elif afr.issues_fixed > 0:
-                recovery = min(afr.issues_fixed * 5, 20)
-                score += recovery
-                factors.append(f"+{recovery}: {afr.issues_fixed} issue(s) auto-fixed")
-
-        # Clamp
-        score = max(0.0, min(100.0, round(score, 1)))
-        grade = _score_to_grade(score)
-
-        if not factors:
-            factors.append("No issues found -- full confidence")
+        # Grade based on the lower of completion and confidence
+        effective = min(completion, confidence)
+        grade = _score_to_grade(effective)
 
         scores.append(FileConfidence(
             file=basename,
-            score=score,
+            completion_pct=completion,
+            confidence_pct=confidence,
             grade=grade,
-            factors=factors,
+            highlights=highlights,
+            needs_attention=needs_attention,
         ))
 
     return scores

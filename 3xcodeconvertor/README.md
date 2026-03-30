@@ -28,7 +28,7 @@ Supports both **Anthropic API** and **AWS Bedrock** as LLM providers.
 - [How It Handles Large Files](#how-it-handles-large-files)
 - [Error Handling & Resilience](#error-handling--resilience)
 - [Output Format](#output-format)
-- [Confidence Scoring](#confidence-scoring)
+- [Completion & Confidence Scoring](#completion--confidence-scoring)
 - [Real-World Example](#real-world-example)
 
 ---
@@ -1139,11 +1139,15 @@ def run_pipeline(spark: SparkSession, params: PipelineParams) -> DataFrame:
     "auto_fix_seconds": 22.1,
     "total_seconds": 650.0
   },
-  "overall_confidence": 85.0,
+  "overall_completion": 88.0,
+  "overall_confidence": 82.0,
   "confidence_scores": [
-    {"file": "utils.py", "score": 95.0, "grade": "A+", "factors": ["No issues found"]},
-    {"file": "aw19_sales_commission_pipeline.py", "score": 72.0, "grade": "C", "factors": ["-8: 1 HIGH", "-10: cursor"]},
-    {"file": "aw19_audit_pricing_violations.py", "score": 88.0, "grade": "B", "factors": ["-9: 3 MEDIUM"]}
+    {"file": "utils.py", "completion_pct": 95.0, "confidence_pct": 95.0, "grade": "A+",
+     "highlights": ["Conversion completed", "Syntax valid", "No errors"], "needs_attention": []},
+    {"file": "aw19_sales_commission_pipeline.py", "completion_pct": 78.0, "confidence_pct": 68.0, "grade": "C",
+     "highlights": ["Conversion completed", "3 auto-fixed"], "needs_attention": ["2 TODOs", "1 HIGH issue"]},
+    {"file": "aw19_audit_pricing_violations.py", "completion_pct": 90.0, "confidence_pct": 85.0, "grade": "B",
+     "highlights": ["Conversion completed", "Syntax valid"], "needs_attention": ["2 MEDIUM issues"]}
   ],
   "objects": [
     {
@@ -1185,89 +1189,130 @@ def run_pipeline(spark: SparkSession, params: PipelineParams) -> DataFrame:
 
 ---
 
-## Confidence Scoring
+## Completion & Confidence Scoring
 
-After all 5 phases complete, the pipeline computes a **confidence score (0-100%)** for each output file, showing how confident the AI system is in the conversion quality. This is computed deterministically from the validation and auto-fix results -- no extra LLM call.
+After all 5 phases, the pipeline computes two scores per output file -- **completion %** and **confidence %** -- with clear human-readable reasons. This runs as pure Python computation (zero LLM cost, zero latency) using data already collected from validation and auto-fix phases.
 
-### Scoring formula
+### Two scores, different questions
 
-**Base: 100 points**, with deductions and recoveries:
-
-| Factor | Points | Explanation |
+| Score | Question it answers | What drives it |
 |---|---|---|
-| ERROR issue remaining | -12 each | Critical correctness problem |
-| HIGH issue remaining | -8 each | Likely produces wrong output |
-| MEDIUM issue remaining | -3 each | Possible issue, review recommended |
-| LOW/INFO issue | -1 each | Style or minor suggestion |
-| Infrastructure issue | -5 each | Needs external setup (Delta, JDBC, etc.) |
-| Cursor logic present | -10 | No direct Spark equivalent, needs manual rewrite |
-| Dynamic SQL present | -8 | Runtime-dependent logic, cannot auto-convert |
-| TODO in generated code | -2 each | Marks incomplete conversion |
-| Syntax invalid | -30 | Broken Python code |
-| Auto-fix reverted | -15 | Fix attempt broke the code |
-| **Auto-fix recovery** | **+5 each** (max +20) | Issues successfully auto-fixed |
+| **Completion %** | "How much of the SQL was successfully converted to working PySpark?" | Code written + syntax valid + TODOs remaining + manual rewrites needed |
+| **Confidence %** | "How confident is the AI that the converted code is correct?" | Validation results + error severity + cross-file checks + auto-fix outcomes |
+
+### How completion % is built (additive)
+
+| Factor | Points | When it applies |
+|---|---|---|
+| SQL-to-PySpark conversion completed | +40 | File was written |
+| Python syntax valid (ast.parse passed) | +25 | No syntax errors |
+| PySpark logic validated by AI review | +15 | Phase 4 confirmed correctness |
+| Cross-file dependencies verified | +5 | Import signatures match |
+| No TODOs in generated code | +5 | Everything converted |
+| Issues automatically fixed by AI | +2 each (max +10) | Phase 5 recovered issues |
+| TODOs remaining | -3 each (max -15) | Sections marked for manual completion |
+| Manual rewrite needed (cursor/dynamic SQL) | -5 each | No Spark equivalent exists |
+
+### How confidence % is built (additive)
+
+| Factor | Points | When it applies |
+|---|---|---|
+| Python syntax valid | +50 | Code parses correctly |
+| PySpark review passed | +20 | AI review confirmed logic |
+| Cross-file dependencies validated | +10 | Signatures match across files |
+| No ERROR or HIGH issues | +15 | Clean validation |
+| Auto-fixed issues recovered | +3 each (max +10) | Phase 5 fixed them |
+| ERROR issues remaining | -8 each | Critical, likely wrong output |
+| HIGH issues remaining | -5 each | Needs review before production |
+| MEDIUM issues | -2 each (max -10) | Recommended review |
+
+**Infrastructure issues** (Delta tables, catalog registration) don't reduce confidence -- the code is correct, the infra just needs setup.
 
 ### Grade scale
 
-| Score | Grade | Meaning |
+| Effective Score | Grade | What it means |
 |---|---|---|
-| 95-100% | **A+** | Production-ready, no issues found |
-| 90-94% | **A** | Near-complete, minor review items only |
-| 80-89% | **B** | Good conversion, some issues need attention |
-| 70-79% | **C** | Usable but needs manual fixes |
-| 60-69% | **D** | Significant issues, substantial manual work needed |
-| <60% | **F** | Major problems, consider re-conversion or manual rewrite |
+| 95-100% | **A+** | Production-ready, deploy with confidence |
+| 90-94% | **A** | Near-complete, minor review items |
+| 80-89% | **B** | Good conversion, a few items need attention |
+| 70-79% | **C** | Usable, but review the flagged items |
+| 60-69% | **D** | Needs significant manual work |
+| <60% | **F** | Major issues, investigate before using |
 
-### Example output
+Grade is based on the **lower** of completion and confidence (a file that's 95% complete but only 60% confident gets a D).
+
+### Example CLI output
 
 ```
-Confidence scores:
-  utils.py: 95% [A+]
-  aw19_sales_commission_pipeline.py: 72% [C]
-  aw19_audit_pricing_violations.py: 88% [B]
-  Overall: 85%
+  Completion:        88%
+  Confidence:        82%
+
+    utils.py: 95% complete, 95% confidence [A+]
+      + SQL-to-PySpark conversion completed
+      + Python syntax valid (ast.parse passed)
+      + PySpark logic validated by AI review
+      + Cross-file dependencies verified
+      + No ERROR or HIGH severity issues
+
+    aw19_sales_commission_pipeline.py: 78% complete, 68% confidence [C]
+      + SQL-to-PySpark conversion completed
+      + Python syntax valid (ast.parse passed)
+      + 3 issue(s) automatically fixed by AI
+      ! 2 TODO(s) in code -- sections marked for manual completion
+      ! 1 section(s) need manual rewrite (cursor/dynamic SQL/MERGE -- no Spark equivalent)
+      ! 1 HIGH issue(s) -- needs human review before production
+      ! 1 infrastructure item(s) -- external setup needed (Delta tables, catalog registration, etc.)
+
+    aw19_audit_pricing_violations.py: 90% complete, 85% confidence [B]
+      + SQL-to-PySpark conversion completed
+      + Python syntax valid (ast.parse passed)
+      + PySpark logic validated by AI review
+      + 1 issue(s) automatically fixed by AI
+      ! 2 MEDIUM issue(s) -- recommended review
 ```
 
 ### In report.json
 
 ```json
 {
-  "overall_confidence": 85.0,
+  "overall_completion": 88.0,
+  "overall_confidence": 82.0,
   "confidence_scores": [
     {
       "file": "utils.py",
-      "score": 95.0,
+      "completion_pct": 95.0,
+      "confidence_pct": 95.0,
       "grade": "A+",
-      "factors": [
-        "No issues found -- full confidence"
-      ]
+      "highlights": [
+        "SQL-to-PySpark conversion completed",
+        "Python syntax valid (ast.parse passed)",
+        "PySpark logic validated by AI review",
+        "No ERROR or HIGH severity issues"
+      ],
+      "needs_attention": []
     },
     {
       "file": "aw19_sales_commission_pipeline.py",
-      "score": 72.0,
+      "completion_pct": 78.0,
+      "confidence_pct": 68.0,
       "grade": "C",
-      "factors": [
-        "-8: 1 HIGH issue(s) remaining",
-        "-10: contains cursor logic (no Spark equivalent)",
-        "-8: contains dynamic SQL (runtime-dependent)",
-        "-4: 2 TODO(s) in generated code",
-        "+5: 1 issue(s) auto-fixed"
-      ]
-    },
-    {
-      "file": "aw19_audit_pricing_violations.py",
-      "score": 88.0,
-      "grade": "B",
-      "factors": [
-        "-9: 3 MEDIUM issue(s)",
-        "-3: 1 LOW/INFO issue(s)"
+      "highlights": [
+        "SQL-to-PySpark conversion completed",
+        "Python syntax valid (ast.parse passed)",
+        "3 issue(s) automatically fixed by AI"
+      ],
+      "needs_attention": [
+        "2 TODO(s) in code -- sections marked for manual completion",
+        "1 section(s) need manual rewrite (cursor/dynamic SQL/MERGE)",
+        "1 HIGH issue(s) -- needs human review before production",
+        "1 infrastructure item(s) -- external setup needed"
       ]
     }
   ]
 }
 ```
 
-The confidence score helps teams prioritize review effort: focus manual review on files graded C or below, and trust A/A+ files for production with minimal oversight.
+Teams can use the scores to **prioritize review effort**: trust A+/A files for production, focus manual review on C and below, and plan infrastructure work separately for items flagged as external setup.
 
 ---
 
