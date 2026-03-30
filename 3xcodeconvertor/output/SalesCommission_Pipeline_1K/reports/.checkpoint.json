@@ -1,0 +1,32 @@
+{
+  "ufn_AW19_SplitCsvInt": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/SalesCommission_Pipeline_1K/pyspark/ufn_aw19_split_csv_int.py",
+    "cost_usd": 0.0705777,
+    "session_id": "32dd519d-cce0-48f5-a08e-799986d4b7dc"
+  },
+  "usp_AW19_Log": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/SalesCommission_Pipeline_1K/pyspark/aw19_log.py",
+    "cost_usd": 0.10582079999999999,
+    "session_id": "83bdb418-3ce4-46d7-b892-0c9a7db0f4e5"
+  },
+  "usp_AW19_ResolveTierOverride": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/SalesCommission_Pipeline_1K/pyspark/aw19_resolve_tier_override.py",
+    "cost_usd": 0.0844623,
+    "session_id": "d4a611a0-006c-4e5a-af82-d981ae893d21"
+  },
+  "usp_AW19_AuditPricingViolations": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/SalesCommission_Pipeline_1K/pyspark/aw19_audit_pricing_violations.py",
+    "cost_usd": 0.4405405499999999,
+    "session_id": "ecc8f379-d7a0-49e9-8c2d-f17d162c9658"
+  },
+  "usp_AW19_SalesCommissionPricingPipeline": {
+    "status": "converted",
+    "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/SalesCommission_Pipeline_1K/pyspark/aw19_sales_commission_pricing_pipeline.py",
+    "cost_usd": 0.9782159999999999,
+    "session_id": "ea6b6b3f-e8da-4851-89b8-d0b6c54574c5"
+  }
+}

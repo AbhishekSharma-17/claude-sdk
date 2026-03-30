@@ -13,7 +13,8 @@ Supports both **Anthropic API** and **AWS Bedrock** as LLM providers.
 - [The 5-Phase Pipeline](#the-5-phase-pipeline)
   - [Phase 1: Discovery & Complexity Analysis](#phase-1-discovery--complexity-analysis)
   - [Phase 2: Dependency Analysis & Conversion Planning](#phase-2-dependency-analysis--conversion-planning)
-  - [Phase 3: SQL-to-PySpark Conversion](#phase-3-sql-to-pyspark-conversion)
+  - [Output Grouping](#output-grouping-between-phase-2-and-phase-3)
+  - [Phase 3: SQL-to-PySpark Conversion (Grouped)](#phase-3-sql-to-pyspark-conversion-grouped)
   - [Phase 4: Context-Aware Validation](#phase-4-context-aware-validation)
   - [Phase 5: Auto-Fix & Developer Action Items](#phase-5-auto-fix--developer-action-items)
 - [Complexity Scoring System](#complexity-scoring-system)
@@ -27,6 +28,7 @@ Supports both **Anthropic API** and **AWS Bedrock** as LLM providers.
 - [How It Handles Large Files](#how-it-handles-large-files)
 - [Error Handling & Resilience](#error-handling--resilience)
 - [Output Format](#output-format)
+- [Confidence Scoring](#confidence-scoring)
 - [Real-World Example](#real-world-example)
 
 ---
@@ -51,15 +53,15 @@ This tool uses Claude as the conversion engine, orchestrated through a **5-phase
                           sql2spark Architecture (5-Phase Pipeline)
  ========================================================================================
 
- INPUT               PHASE 1              PHASE 2                PHASE 3
- -----               -------              -------                -------
- input/*.sql ---> DISCOVERY ---------> PLANNING -----------> CONVERSION
-                  |                    |                      |
-                  +- Object inventory  +- Dependency graph    +- PySpark .py files
-                  +- Dialect detection +- Topological sort    |  (one per object)
-                  +- Complexity score  +- Per-object          +- Parallel by
-                  +- Line ranges         instructions        |  dependency level
-                  +- Construct IDs     +- Gotcha flags        +- Self-correcting
+ INPUT               PHASE 1              PHASE 2                GROUPING          PHASE 3
+ -----               -------              -------                --------          -------
+ input/*.sql ---> DISCOVERY ---------> PLANNING -----------> OUTPUT GROUPS --> CONVERSION
+                  |                    |                      |                 |
+                  +- Object inventory  +- Dependency graph    +- utilities      +- PySpark .py
+                  +- Dialect detection +- Topological sort    +- main_pipeline  |  modules
+                  +- Complexity score  +- Per-object          +- standalone     |  (grouped)
+                  +- Line ranges         instructions        |  (deterministic +- Self-correcting
+                  +- Construct IDs     +- Gotcha flags        |   no LLM cost)
                                        +- Strategy per obj
 
  PHASE 4                          PHASE 5
@@ -79,10 +81,18 @@ This tool uses Claude as the conversion engine, orchestrated through a **5-phase
                                 |  - recommended_review
                                 +- TODO collection
 
- OUTPUT
+ OUTPUT (per-script folder structure)
  ------
- output/*.py            <-- One PySpark file per SQL object
- output/report.json     <-- Full report with costs + developer action items
+ output/<script_name>/
+   pyspark/
+     utils.py                  <-- Grouped: functions + utility procs
+     <main_pipeline>.py        <-- Grouped: main proc + exclusive helpers
+     <standalone>.py           <-- Standalone: independently schedulable
+   reports/
+     discovery.json            <-- Phase 1 thought process
+     conversion_plan.json      <-- Phase 2 thought process + grouping
+     report.json               <-- Full report with costs + timings + action items
+     .checkpoint.json          <-- Resume state
 ```
 
 ### Core Design Principles
@@ -91,10 +101,12 @@ This tool uses Claude as the conversion engine, orchestrated through a **5-phase
 2. **Knowledge distillation**: Phase 2 reads the full knowledge base once, then produces targeted instructions for Phase 3 -- saving 60-80% on input tokens
 3. **Fresh context per object**: Each conversion gets a clean context window via `query()`, preventing context exhaustion on large scripts
 4. **Parallel by dependency level**: Objects with no mutual dependencies convert concurrently
-5. **Self-correcting**: Phase 3 validates its own output and fixes syntax errors within the same query
-6. **Context-aware validation**: Phase 4 injects dependency file signatures so Claude can cross-validate function calls, argument counts, and return types across the whole generated codebase
-7. **Safe auto-fix**: Phase 5 fixes mechanical issues (deprecated APIs, missing configs) with an `ast.parse()` safety net -- if the fix breaks syntax, the original is restored immediately
-8. **Checkpoint/resume**: Progress is saved after each conversion for resilience
+5. **Production-style grouping**: SQL objects are grouped into output modules (utilities, main pipeline, standalone) matching how real Spark projects are organized -- not 1:1 with SQL objects
+6. **Self-correcting**: Phase 3 validates its own output and fixes syntax errors within the same query
+7. **Context-aware validation**: Phase 4 injects dependency file signatures so Claude can cross-validate function calls, argument counts, and return types across the whole generated codebase
+8. **Safe auto-fix**: Phase 5 fixes mechanical issues (deprecated APIs, missing configs) with an `ast.parse()` safety net -- if the fix breaks syntax, the original is restored immediately
+9. **Per-phase timing**: Every phase is timed and reported in discovery.json, conversion_plan.json, and report.json
+10. **Checkpoint/resume**: Progress is saved after each conversion for resilience
 
 ---
 
@@ -293,29 +305,61 @@ This tool uses Claude as the conversion engine, orchestrated through a **5-phase
 }
 ```
 
+### Output Grouping (between Phase 2 and Phase 3)
+
+After planning, a **deterministic grouping step** organizes SQL objects into production-style output modules. This runs in code (no LLM call), using the dependency graph and complexity scores:
+
+| Group Type | Rule | Output File |
+|---|---|---|
+| **utilities** | Functions + simple utility procs (complexity <=2.0, <50 lines, called by 2+ others) | `utils.py` |
+| **main_pipeline** | Highest-complexity procedure + its exclusive helpers (only called by it, score <5.0) | `<main_proc>.py` |
+| **standalone** | Everything else (independently schedulable jobs) | `<proc_name>.py` |
+
+**Example**: 5 SQL objects --> 3 output files:
+```
+ufn_AW19_SplitCsvInt (function)            ─┐
+usp_AW19_Log (procedure, Simple 1.2)       ─┤── utils.py
+                                             │
+usp_AW19_SalesCommissionPipeline (Complex)  ─┤── aw19_sales_commission_pipeline.py
+usp_AW19_ResolveTierOverride (Simple 2.0)   ─┘   (exclusive helper, clubbed with main)
+
+usp_AW19_AuditPricingViolations (Moderate)  ──── aw19_audit_pricing_violations.py (standalone)
+```
+
+This matches how production Spark projects are organized:
+- **Shared utilities** in one module (imported by others, no CLI entry point)
+- **Main pipeline** as a cohesive unit with `run_pipeline()` + CLI
+- **Independent jobs** as separate files (each schedulable in Airflow/Databricks)
+
+The grouping info is saved in `conversion_plan.json` under `output_groups`.
+
 ---
 
-### Phase 3: SQL-to-PySpark Conversion
+### Phase 3: SQL-to-PySpark Conversion (Grouped)
 
-**What it does**: Converts each SQL object to a production-quality PySpark `.py` file.
+**What it does**: Converts SQL objects into production-quality PySpark modules, **grouped by role** -- not 1:1 with SQL objects.
 
-**Model**: Configurable (default: Opus) | **Budget**: $2.50/object | **Max turns**: 25
+**Model**: Configurable (default: Opus) | **Budget**: $2.50/group | **Max turns**: 25
 
 **How it works**:
 
-1. For each object (in the planned conversion order), spawns a fresh `query()` call
-2. Claude reads the specific line range from the SQL file using `Read(offset, limit)`
-3. Receives the **targeted conversion instructions** from Phase 2 (not the full knowledge base)
-4. Receives **dependency context**: compressed signatures of already-converted objects (function name, params, return type -- typically 5-20 lines per dependency)
-5. Writes the `.py` file to `output/` using the `Write` tool
-6. Validates its own output using the `validate_pyspark_syntax` MCP tool
-7. If validation fails, self-corrects within the same query (has 25 turns budget)
+1. For each **output group** (in dependency order: utilities first, standalone next, main pipeline last), spawns a fresh `query()` call
+2. Claude reads **all SQL line ranges** for objects in that group
+3. Receives the **targeted conversion instructions** from Phase 2 for every object in the group
+4. Receives **module structure guidance** based on group type:
+   - `utilities`: No CLI, pure functions first, helper classes next
+   - `main_pipeline`: Private helpers `_step_*()`, public `run_pipeline()`, CLI entry point
+   - `standalone`: Own `run_pipeline()` + CLI
+5. Receives **dependency context**: signatures from already-converted groups (e.g., utilities signatures when converting main pipeline)
+6. Writes a **single cohesive `.py` module** to `output/<script>/pyspark/`
+7. Validates its own output using the `validate_pyspark_syntax` MCP tool
+8. If validation fails, self-corrects within the same query
 
 **Tools available**: `Read`, `Write`, `Bash`, `mcp__sql2spark__validate_pyspark_syntax`
 
-**Parallel execution**: Objects at the same dependency level run via `asyncio.gather` with configurable concurrency (default 3, `--parallel` flag).
+**Group conversion order**: utilities --> standalone --> main_pipeline (ensures dependency signatures are available)
 
-**Interactive mode** (`--interactive`): Uses `ClaudeSDKClient` instead of `query()`. Claude can use `AskUserQuestion` for ambiguous SQL patterns. User approves/revises/skips each conversion.
+**Interactive mode** (`--interactive`): Uses `ClaudeSDKClient` instead of `query()`. Claude can use `AskUserQuestion` for ambiguous SQL patterns.
 
 **Knowledge injected**: Only the abbreviated style guide in system prompt (~2K tokens) + targeted instructions from Phase 2 in the user prompt
 
@@ -737,10 +781,13 @@ The Claude Agent SDK automatically caches repeated system prompts. Phase 3's sys
 |-------|-------|-------|-----------|
 | Discovery | 1 | Opus | ~$1.50 |
 | Planning | 1 | Opus | ~$1.20 |
-| Conversion | 20 | Opus | ~$35.00 |
-| Validation | 20 | Sonnet | ~$1.00 |
-| Auto-Fix | ~5 | Sonnet | ~$1.50 |
-| **Total** | | | **~$40.20** |
+| Grouping | 0 (code) | -- | $0.00 |
+| Conversion | ~8 groups | Opus | ~$18.00 |
+| Validation | ~8 files | Sonnet | ~$1.00 |
+| Auto-Fix | ~3 files | Sonnet | ~$1.00 |
+| **Total** | | | **~$22.70** |
+
+Grouped conversion is ~45% cheaper than 1:1 because fewer LLM calls are needed and Claude can organize related code cohesively in a single pass.
 
 ---
 
@@ -749,7 +796,18 @@ The Claude Agent SDK automatically caches repeated system prompts. Phase 3's sys
 ```
 3xcodeconvertor/
   input/                          <-- Drop SQL files here
-  output/                         <-- Converted PySpark files + report.json
+  output/                         <-- Per-script output folders
+    <script_name>/                   (one folder per input SQL file)
+      pyspark/                       Grouped PySpark modules:
+        utils.py                       functions + utility procs
+        <main_pipeline>.py             main proc + exclusive helpers
+        <standalone>.py                independently schedulable jobs
+      reports/
+        discovery.json                 Phase 1: object inventory + complexity
+        conversion_plan.json           Phase 2: dependency graph + grouping
+        report.json                    Final report: costs + timings + action items
+        .checkpoint.json               Resume state
+
   knowledge/                      <-- 5 curated reference documents
     sql_to_pyspark_mapping.md       319 lines -- construct mapping
     few_shot_examples.md            199 lines -- before/after examples
@@ -758,7 +816,7 @@ The Claude Agent SDK automatically caches repeated system prompts. Phase 3's sys
     pyspark_idioms.md               296 lines -- output style guide
 
   converter.py                    <-- CLI entry point (argparse)
-  orchestrator.py                 <-- Pipeline: Phase 1 -> 2 -> 3 -> 4 -> 5
+  orchestrator.py                 <-- Pipeline: Phase 1 -> 2 -> grouping -> 3 -> 4 -> 5
   config.py                       <-- ConverterConfig dataclass
   models.py                       <-- Pydantic schemas + JSON output schemas
   tools.py                        <-- 2 custom MCP tools
@@ -771,7 +829,7 @@ The Claude Agent SDK automatically caches repeated system prompts. Phase 3's sys
   phases/
     discovery.py                  <-- Phase 1: Object inventory + complexity
     planning.py                   <-- Phase 2: Dependency graph + conversion plan
-    conversion.py                 <-- Phase 3: Parallel + interactive conversion
+    conversion.py                 <-- Phase 3: Grouped + interactive conversion
     validation.py                 <-- Phase 4: Context-aware validation + report
     auto_fix.py                   <-- Phase 5: Auto-fix + developer action items
 ```
@@ -886,7 +944,7 @@ SQL2SPARK_FALLBACK_MODEL=sonnet         # Fallback if primary unavailable
 | `total_budget_usd` | `50.0` | -- | Pipeline-wide cost cap |
 | `discovery_budget_per_file` | `1.00` | -- | Phase 1 per-file cap |
 | `planning_budget` | `1.50` | -- | Phase 2 cap |
-| `conversion_budget_per_object` | `2.50` | -- | Phase 3 per-object cap |
+| `conversion_budget_per_object` | `2.50` | -- | Phase 3 per-group cap |
 | `validation_budget_per_file` | `0.30` | -- | Phase 4 per-file cap |
 | `auto_fix_budget_per_file` | `0.50` | -- | Phase 5 per-file cap |
 | `max_parallel_conversions` | `3` | -- | Concurrency limit |
@@ -987,9 +1045,39 @@ Individual objects (procedures, functions) are typically 50-500 lines. Phase 3 r
 
 ## Output Format
 
-### Per-object PySpark files
+### Output folder structure
 
-Each generated `.py` file follows the style guide from `pyspark_idioms.md`:
+```
+output/
+  SalesCommission_Pipeline_1K/          <-- named after SQL file (without .sql)
+    pyspark/
+      utils.py                            utilities: ufn_SplitCsvInt + usp_Log
+      aw19_sales_commission_pipeline.py   main pipeline + ResolveTierOverride
+      aw19_audit_pricing_violations.py    standalone job
+    reports/
+      discovery.json                      Phase 1 thought process
+      conversion_plan.json                Phase 2 thought process + output grouping
+      report.json                         Final report with costs + timings + actions
+      .checkpoint.json                    Resume state for interrupted runs
+```
+
+### Phase reports
+
+**`discovery.json`** -- Phase 1 output, shows how the converter understood the SQL:
+- Object inventory with line ranges, parameters, references
+- Dialect detection, complexity scores per object
+- Phase duration and cost
+
+**`conversion_plan.json`** -- Phase 2 output, shows the conversion strategy:
+- Dependency graph (who calls whom)
+- Topological levels (conversion order)
+- Per-object conversion instructions
+- Output grouping (which objects are clubbed into which files)
+- Phase duration and cost
+
+### PySpark modules (grouped)
+
+Each generated `.py` module follows the style guide from `pyspark_idioms.md`:
 
 ```python
 """PySpark conversion of sales_etl.sql -- usp_LoadCustomers.
@@ -1025,7 +1113,7 @@ def run_pipeline(spark: SparkSession, params: PipelineParams) -> DataFrame:
     ...
 ```
 
-### Conversion report (`output/report.json`)
+### Conversion report (`output/<script>/reports/report.json`)
 
 ```json
 {
@@ -1043,11 +1131,25 @@ def run_pipeline(spark: SparkSession, params: PipelineParams) -> DataFrame:
     "validation": 0.55,
     "auto_fix": 0.35
   },
+  "phase_timings": {
+    "discovery_seconds": 137.7,
+    "planning_seconds": 264.4,
+    "conversion_seconds": 180.2,
+    "validation_seconds": 45.6,
+    "auto_fix_seconds": 22.1,
+    "total_seconds": 650.0
+  },
+  "overall_confidence": 85.0,
+  "confidence_scores": [
+    {"file": "utils.py", "score": 95.0, "grade": "A+", "factors": ["No issues found"]},
+    {"file": "aw19_sales_commission_pipeline.py", "score": 72.0, "grade": "C", "factors": ["-8: 1 HIGH", "-10: cursor"]},
+    {"file": "aw19_audit_pricing_violations.py", "score": 88.0, "grade": "B", "factors": ["-9: 3 MEDIUM"]}
+  ],
   "objects": [
     {
-      "object_name": "usp_AWLT_Converter_Log",
+      "object_name": "utilities",
       "status": "converted",
-      "output_file": "output/awlt_converter_log.py",
+      "output_file": "output/AWLT_ConverterTest_1k/pyspark/utils.py",
       "cost_usd": 0.25,
       "turns_used": 4
     }
@@ -1062,7 +1164,7 @@ def run_pipeline(spark: SparkSession, params: PipelineParams) -> DataFrame:
   ],
   "auto_fix_results": [
     {
-      "file_path": "output/awlt_converter_log.py",
+      "file_path": "output/AWLT_ConverterTest_1k/pyspark/utils.py",
       "status": "fixed",
       "issues_attempted": 1,
       "issues_fixed": 1,
@@ -1080,6 +1182,92 @@ def run_pipeline(spark: SparkSession, params: PipelineParams) -> DataFrame:
   }
 }
 ```
+
+---
+
+## Confidence Scoring
+
+After all 5 phases complete, the pipeline computes a **confidence score (0-100%)** for each output file, showing how confident the AI system is in the conversion quality. This is computed deterministically from the validation and auto-fix results -- no extra LLM call.
+
+### Scoring formula
+
+**Base: 100 points**, with deductions and recoveries:
+
+| Factor | Points | Explanation |
+|---|---|---|
+| ERROR issue remaining | -12 each | Critical correctness problem |
+| HIGH issue remaining | -8 each | Likely produces wrong output |
+| MEDIUM issue remaining | -3 each | Possible issue, review recommended |
+| LOW/INFO issue | -1 each | Style or minor suggestion |
+| Infrastructure issue | -5 each | Needs external setup (Delta, JDBC, etc.) |
+| Cursor logic present | -10 | No direct Spark equivalent, needs manual rewrite |
+| Dynamic SQL present | -8 | Runtime-dependent logic, cannot auto-convert |
+| TODO in generated code | -2 each | Marks incomplete conversion |
+| Syntax invalid | -30 | Broken Python code |
+| Auto-fix reverted | -15 | Fix attempt broke the code |
+| **Auto-fix recovery** | **+5 each** (max +20) | Issues successfully auto-fixed |
+
+### Grade scale
+
+| Score | Grade | Meaning |
+|---|---|---|
+| 95-100% | **A+** | Production-ready, no issues found |
+| 90-94% | **A** | Near-complete, minor review items only |
+| 80-89% | **B** | Good conversion, some issues need attention |
+| 70-79% | **C** | Usable but needs manual fixes |
+| 60-69% | **D** | Significant issues, substantial manual work needed |
+| <60% | **F** | Major problems, consider re-conversion or manual rewrite |
+
+### Example output
+
+```
+Confidence scores:
+  utils.py: 95% [A+]
+  aw19_sales_commission_pipeline.py: 72% [C]
+  aw19_audit_pricing_violations.py: 88% [B]
+  Overall: 85%
+```
+
+### In report.json
+
+```json
+{
+  "overall_confidence": 85.0,
+  "confidence_scores": [
+    {
+      "file": "utils.py",
+      "score": 95.0,
+      "grade": "A+",
+      "factors": [
+        "No issues found -- full confidence"
+      ]
+    },
+    {
+      "file": "aw19_sales_commission_pipeline.py",
+      "score": 72.0,
+      "grade": "C",
+      "factors": [
+        "-8: 1 HIGH issue(s) remaining",
+        "-10: contains cursor logic (no Spark equivalent)",
+        "-8: contains dynamic SQL (runtime-dependent)",
+        "-4: 2 TODO(s) in generated code",
+        "+5: 1 issue(s) auto-fixed"
+      ]
+    },
+    {
+      "file": "aw19_audit_pricing_violations.py",
+      "score": 88.0,
+      "grade": "B",
+      "factors": [
+        "-9: 3 MEDIUM issue(s)",
+        "-3: 1 LOW/INFO issue(s)"
+      ]
+    }
+  ]
+}
+```
+
+The confidence score helps teams prioritize review effort: focus manual review on files graded C or below, and trust A/A+ files for production with minimal oversight.
 
 ---
 

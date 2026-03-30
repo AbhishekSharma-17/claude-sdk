@@ -1,0 +1,475 @@
+{
+  "phase": "discovery",
+  "description": "Phase 1: Object inventory, dialect detection, complexity scoring",
+  "inventories": [
+    {
+      "file_path": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/input/SalesCommission_Pipeline_1K.sql",
+      "total_lines": 724,
+      "dialect": "tsql",
+      "file_complexity": "Standard script",
+      "file_complexity_score": 5.1,
+      "objects": [
+        {
+          "name": "usp_AW19_Log",
+          "type": "procedure",
+          "start_line": 28,
+          "end_line": 42,
+          "line_count": 15,
+          "parameters": [
+            {
+              "name": "@RunId",
+              "data_type": "UNIQUEIDENTIFIER",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@ProcName",
+              "data_type": "SYSNAME",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@StepName",
+              "data_type": "NVARCHAR(200)",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@StepStatus",
+              "data_type": "NVARCHAR(30)",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@Message",
+              "data_type": "NVARCHAR(2000)",
+              "direction": "IN",
+              "default_value": "NULL"
+            },
+            {
+              "name": "@Complete",
+              "data_type": "BIT",
+              "direction": "IN",
+              "default_value": "0"
+            }
+          ],
+          "references": [
+            "dbo.AW19_RunLog"
+          ],
+          "temp_tables_created": [],
+          "temp_tables_used": [],
+          "has_cursor": false,
+          "has_dynamic_sql": false,
+          "has_transaction": false,
+          "window_function_count": 0,
+          "complexity_score": 1.25,
+          "complexity_level": "Simple",
+          "known_limitations": [],
+          "constructs_used": [
+            "INSERT VALUES",
+            "CASE",
+            "SYSUTCDATETIME",
+            "SET NOCOUNT ON"
+          ]
+        },
+        {
+          "name": "ufn_AW19_SplitCsvInt",
+          "type": "function",
+          "start_line": 47,
+          "end_line": 65,
+          "line_count": 19,
+          "parameters": [
+            {
+              "name": "@csv",
+              "data_type": "NVARCHAR(MAX)",
+              "direction": "IN",
+              "default_value": null
+            }
+          ],
+          "references": [],
+          "temp_tables_created": [],
+          "temp_tables_used": [],
+          "has_cursor": false,
+          "has_dynamic_sql": false,
+          "has_transaction": false,
+          "window_function_count": 0,
+          "complexity_score": 1.25,
+          "complexity_level": "Simple",
+          "known_limitations": [
+            "WHILE loop with manual string parsing (lines 54-62) \u2014 rewrite as F.split(col, ',') + F.explode() + .cast('int') with F.col().isNotNull() filter",
+            "TABLE variable @t \u2014 replace with DataFrame; no DDL needed in PySpark",
+            "TRY_CONVERT(INT, token) \u2014 PySpark .cast('int') already returns NULL on failure; behaviour is equivalent"
+          ],
+          "constructs_used": [
+            "WHILE loop",
+            "TABLE variable",
+            "CHARINDEX",
+            "SUBSTRING",
+            "LTRIM/RTRIM",
+            "REPLACE",
+            "CHAR",
+            "TRY_CONVERT",
+            "COALESCE",
+            "IF/BREAK",
+            "RETURNS TABLE"
+          ]
+        },
+        {
+          "name": "usp_AW19_SalesCommissionPricingPipeline",
+          "type": "procedure",
+          "start_line": 135,
+          "end_line": 603,
+          "line_count": 469,
+          "parameters": [
+            {
+              "name": "@StartDate",
+              "data_type": "DATE",
+              "direction": "IN",
+              "default_value": "NULL"
+            },
+            {
+              "name": "@EndDate",
+              "data_type": "DATE",
+              "direction": "IN",
+              "default_value": "NULL"
+            },
+            {
+              "name": "@TerritoryGroupFilter",
+              "data_type": "NVARCHAR(50)",
+              "direction": "IN",
+              "default_value": "NULL"
+            },
+            {
+              "name": "@CustomerIdsCsv",
+              "data_type": "NVARCHAR(MAX)",
+              "direction": "IN",
+              "default_value": "NULL"
+            },
+            {
+              "name": "@MinOrderAmt",
+              "data_type": "DECIMAL(10,2)",
+              "direction": "IN",
+              "default_value": "0"
+            },
+            {
+              "name": "@TopNSalesPerson",
+              "data_type": "INT",
+              "direction": "IN",
+              "default_value": "10"
+            },
+            {
+              "name": "@EmitDebug",
+              "data_type": "BIT",
+              "direction": "IN",
+              "default_value": "0"
+            }
+          ],
+          "references": [
+            "dbo.usp_AW19_Log",
+            "dbo.ufn_AW19_SplitCsvInt",
+            "Sales.SalesOrderHeader",
+            "Sales.SalesTerritory",
+            "Sales.SalesPerson",
+            "Person.Person",
+            "HumanResources.Employee",
+            "Sales.SalesPersonQuotaHistory",
+            "Sales.SalesOrderDetail",
+            "Production.Product",
+            "Production.ProductSubcategory",
+            "Production.ProductCategory",
+            "Production.ProductModel"
+          ],
+          "temp_tables_created": [
+            "#CustomerFilter",
+            "#BaseOrders",
+            "#Lines",
+            "#CustomerTier",
+            "#PricedLines",
+            "#LineFinals",
+            "#SPSummary",
+            "#CustomerSummary",
+            "#TerritoryBenchmarks"
+          ],
+          "temp_tables_used": [
+            "#CustomerFilter",
+            "#BaseOrders",
+            "#Lines",
+            "#CustomerTier",
+            "#PricedLines",
+            "#LineFinals",
+            "#SPSummary",
+            "#CustomerSummary",
+            "#TerritoryBenchmarks"
+          ],
+          "has_cursor": false,
+          "has_dynamic_sql": false,
+          "has_transaction": false,
+          "window_function_count": 4,
+          "complexity_score": 7.0,
+          "complexity_level": "Complex",
+          "known_limitations": [
+            "Correlated scalar subqueries in final SELECT at lines 579-586 (UniqueCustomers, AvgCustomerRFMScore) \u2014 pre-aggregate and flatten to LEFT JOINs before conversion",
+            "Temp table indexes with INCLUDE columns (lines 213-214, 255-257, 403-404) \u2014 no B-tree indexes in Spark; use .repartition(col).cache() for data locality",
+            "OBJECT_ID('tempdb..#X') IS NOT NULL DROP TABLE checks \u2014 skip entirely; DataFrame lifecycle is auto-managed in PySpark",
+            "SELECT TOP (@TopNSalesPerson) \u2026 ORDER BY \u2014 convert to .orderBy(F.col('TotalAdjustedRevenue').desc()).limit(params.top_n_sales_person)",
+            "DATEDIFF(DAY, MAX(lf.OrderDate), @EndDate) at line 504 \u2014 argument order is REVERSED in PySpark: F.datediff(end_date, start_date)",
+            "SYSUTCDATETIME() \u2014 use F.current_timestamp() or datetime.now(timezone.utc)",
+            "BEGIN TRY \u2026 END CATCH at lines 160/594-600 \u2014 replace with Python try/except; add Delta Lake MERGE if ACID rollback is needed",
+            "Deeply nested 3-level CASE blocks (Discount %, Commission %, lines 323-396) \u2014 convert to chained F.when().when().otherwise() with care for NULL semantics and case-sensitive string comparisons (collation gotcha)"
+          ],
+          "constructs_used": [
+            "CTE",
+            "SELECT INTO temp table",
+            "INNER JOIN",
+            "LEFT JOIN",
+            "Subquery in FROM (derived table)",
+            "Correlated subquery in SELECT",
+            "EXISTS subquery",
+            "Deeply nested CASE WHEN (3 levels)",
+            "NTILE window function",
+            "GROUP BY",
+            "ORDER BY",
+            "TOP N",
+            "COALESCE",
+            "NULLIF",
+            "DATEDIFF",
+            "CAST",
+            "CONCAT",
+            "BEGIN TRY / END CATCH",
+            "THROW",
+            "EXEC stored procedure",
+            "SET NOCOUNT ON",
+            "Clustered and non-clustered temp table indexes"
+          ]
+        },
+        {
+          "name": "usp_AW19_ResolveTierOverride",
+          "type": "procedure",
+          "start_line": 608,
+          "end_line": 638,
+          "line_count": 31,
+          "parameters": [
+            {
+              "name": "@CustomerID",
+              "data_type": "INT",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@CurrentTier",
+              "data_type": "NVARCHAR(30)",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@ResolvedTier",
+              "data_type": "NVARCHAR(30)",
+              "direction": "OUTPUT",
+              "default_value": null
+            }
+          ],
+          "references": [
+            "Person.Person",
+            "Person.PersonPhone",
+            "Person.EmailAddress"
+          ],
+          "temp_tables_created": [],
+          "temp_tables_used": [],
+          "has_cursor": false,
+          "has_dynamic_sql": false,
+          "has_transaction": false,
+          "window_function_count": 0,
+          "complexity_score": 2.05,
+          "complexity_level": "Simple",
+          "known_limitations": [
+            "OUTPUT parameter @ResolvedTier \u2014 return as a Python function return value or tuple element instead",
+            "String comparisons against @PersonType and @Title rely on SQL Server CI_AS collation \u2014 in PySpark use F.lower() or .ilike() to ensure case-insensitive matching",
+            "Scalar variable assignment via SELECT (lines 621-626) \u2014 rewrite as Python variables populated from df.first() on a filtered DataFrame"
+          ],
+          "constructs_used": [
+            "CASE WHEN",
+            "IN predicate",
+            "Scalar variable SELECT",
+            "OUTPUT parameter",
+            "SET variable",
+            "SET NOCOUNT ON"
+          ]
+        },
+        {
+          "name": "usp_AW19_AuditPricingViolations",
+          "type": "procedure",
+          "start_line": 643,
+          "end_line": 724,
+          "line_count": 82,
+          "parameters": [
+            {
+              "name": "@RunId",
+              "data_type": "UNIQUEIDENTIFIER",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@StartDate",
+              "data_type": "DATE",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@EndDate",
+              "data_type": "DATE",
+              "direction": "IN",
+              "default_value": null
+            },
+            {
+              "name": "@ViolationCount",
+              "data_type": "INT",
+              "direction": "OUTPUT",
+              "default_value": null
+            }
+          ],
+          "references": [
+            "dbo.AW19_PricingRules",
+            "dbo.usp_AW19_Log",
+            "Sales.SalesOrderDetail",
+            "Sales.SalesOrderHeader",
+            "Sales.SalesTerritory",
+            "Production.Product",
+            "Production.ProductSubcategory",
+            "Production.ProductCategory"
+          ],
+          "temp_tables_created": [
+            "#Violations"
+          ],
+          "temp_tables_used": [
+            "#Violations"
+          ],
+          "has_cursor": false,
+          "has_dynamic_sql": false,
+          "has_transaction": false,
+          "window_function_count": 0,
+          "complexity_score": 3.25,
+          "complexity_level": "Moderate",
+          "known_limitations": [
+            "OUTPUT parameter @ViolationCount \u2014 return as Python function return value",
+            "OBJECT_ID('tempdb..#Violations') check at line 656 \u2014 skip; auto-managed in PySpark",
+            "Date range filter CAST(h.OrderDate AS DATE) BETWEEN @StartDate AND @EndDate \u2014 use F.col('OrderDate').cast('date').between(start, end); verify no implicit type coercion issues",
+            "LEFT JOIN to dbo.AW19_PricingRules with date-range overlap condition (lines 690-694) \u2014 valid JOIN but relies on NULL handling for ExpiryDate; use F.col('ExpiryDate').isNull() | (F.col('ExpiryDate') >= end_date) in PySpark explicitly"
+          ],
+          "constructs_used": [
+            "SELECT INTO temp table",
+            "INNER JOIN",
+            "LEFT JOIN",
+            "CASE WHEN multi-branch violation classification",
+            "COALESCE",
+            "Multi-predicate WHERE with OR",
+            "Scalar COUNT into OUTPUT variable",
+            "ORDER BY",
+            "CAST",
+            "EXEC stored procedure",
+            "SET NOCOUNT ON"
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_files": 1,
+    "total_objects": 5,
+    "dialect": "tsql",
+    "file_complexity": "Standard script",
+    "file_complexity_score": 5.1,
+    "objects": [
+      {
+        "name": "usp_AW19_Log",
+        "type": "procedure",
+        "line_count": 15,
+        "complexity_level": "Simple",
+        "complexity_score": 1.25,
+        "has_cursor": false,
+        "has_dynamic_sql": false,
+        "temp_tables_created": [],
+        "known_limitations": []
+      },
+      {
+        "name": "ufn_AW19_SplitCsvInt",
+        "type": "function",
+        "line_count": 19,
+        "complexity_level": "Simple",
+        "complexity_score": 1.25,
+        "has_cursor": false,
+        "has_dynamic_sql": false,
+        "temp_tables_created": [],
+        "known_limitations": [
+          "WHILE loop with manual string parsing (lines 54-62) \u2014 rewrite as F.split(col, ',') + F.explode() + .cast('int') with F.col().isNotNull() filter",
+          "TABLE variable @t \u2014 replace with DataFrame; no DDL needed in PySpark",
+          "TRY_CONVERT(INT, token) \u2014 PySpark .cast('int') already returns NULL on failure; behaviour is equivalent"
+        ]
+      },
+      {
+        "name": "usp_AW19_SalesCommissionPricingPipeline",
+        "type": "procedure",
+        "line_count": 469,
+        "complexity_level": "Complex",
+        "complexity_score": 7.0,
+        "has_cursor": false,
+        "has_dynamic_sql": false,
+        "temp_tables_created": [
+          "#CustomerFilter",
+          "#BaseOrders",
+          "#Lines",
+          "#CustomerTier",
+          "#PricedLines",
+          "#LineFinals",
+          "#SPSummary",
+          "#CustomerSummary",
+          "#TerritoryBenchmarks"
+        ],
+        "known_limitations": [
+          "Correlated scalar subqueries in final SELECT at lines 579-586 (UniqueCustomers, AvgCustomerRFMScore) \u2014 pre-aggregate and flatten to LEFT JOINs before conversion",
+          "Temp table indexes with INCLUDE columns (lines 213-214, 255-257, 403-404) \u2014 no B-tree indexes in Spark; use .repartition(col).cache() for data locality",
+          "OBJECT_ID('tempdb..#X') IS NOT NULL DROP TABLE checks \u2014 skip entirely; DataFrame lifecycle is auto-managed in PySpark",
+          "SELECT TOP (@TopNSalesPerson) \u2026 ORDER BY \u2014 convert to .orderBy(F.col('TotalAdjustedRevenue').desc()).limit(params.top_n_sales_person)",
+          "DATEDIFF(DAY, MAX(lf.OrderDate), @EndDate) at line 504 \u2014 argument order is REVERSED in PySpark: F.datediff(end_date, start_date)",
+          "SYSUTCDATETIME() \u2014 use F.current_timestamp() or datetime.now(timezone.utc)",
+          "BEGIN TRY \u2026 END CATCH at lines 160/594-600 \u2014 replace with Python try/except; add Delta Lake MERGE if ACID rollback is needed",
+          "Deeply nested 3-level CASE blocks (Discount %, Commission %, lines 323-396) \u2014 convert to chained F.when().when().otherwise() with care for NULL semantics and case-sensitive string comparisons (collation gotcha)"
+        ]
+      },
+      {
+        "name": "usp_AW19_ResolveTierOverride",
+        "type": "procedure",
+        "line_count": 31,
+        "complexity_level": "Simple",
+        "complexity_score": 2.05,
+        "has_cursor": false,
+        "has_dynamic_sql": false,
+        "temp_tables_created": [],
+        "known_limitations": [
+          "OUTPUT parameter @ResolvedTier \u2014 return as a Python function return value or tuple element instead",
+          "String comparisons against @PersonType and @Title rely on SQL Server CI_AS collation \u2014 in PySpark use F.lower() or .ilike() to ensure case-insensitive matching",
+          "Scalar variable assignment via SELECT (lines 621-626) \u2014 rewrite as Python variables populated from df.first() on a filtered DataFrame"
+        ]
+      },
+      {
+        "name": "usp_AW19_AuditPricingViolations",
+        "type": "procedure",
+        "line_count": 82,
+        "complexity_level": "Moderate",
+        "complexity_score": 3.25,
+        "has_cursor": false,
+        "has_dynamic_sql": false,
+        "temp_tables_created": [
+          "#Violations"
+        ],
+        "known_limitations": [
+          "OUTPUT parameter @ViolationCount \u2014 return as Python function return value",
+          "OBJECT_ID('tempdb..#Violations') check at line 656 \u2014 skip; auto-managed in PySpark",
+          "Date range filter CAST(h.OrderDate AS DATE) BETWEEN @StartDate AND @EndDate \u2014 use F.col('OrderDate').cast('date').between(start, end); verify no implicit type coercion issues",
+          "LEFT JOIN to dbo.AW19_PricingRules with date-range overlap condition (lines 690-694) \u2014 valid JOIN but relies on NULL handling for ExpiryDate; use F.col('ExpiryDate').isNull() | (F.col('ExpiryDate') >= end_date) in PySpark explicitly"
+        ]
+      }
+    ]
+  },
+  "cost_usd": 0.2664546,
+  "duration_seconds": 137.7
+}

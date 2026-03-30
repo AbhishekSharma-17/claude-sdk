@@ -1,0 +1,295 @@
+{
+  "phase": "planning",
+  "description": "Phase 2: Dependency analysis, topological sort, per-object conversion instructions",
+  "conversion_plan": {
+    "total_objects": 5,
+    "conversion_levels": [
+      {
+        "level": 0,
+        "description": "Standalone function \u2014 no dependencies on other discovered objects",
+        "objects": [
+          "ufn_AW19_SplitCsvInt"
+        ],
+        "strategy": "Parallel conversion \u2014 convert before any procedure that calls it"
+      },
+      {
+        "level": 1,
+        "description": "Leaf procedures \u2014 depend only on external tables, not on other discovered procedures/functions",
+        "objects": [
+          "usp_AW19_Log",
+          "usp_AW19_ResolveTierOverride"
+        ],
+        "strategy": "Parallel conversion \u2014 both have zero intra-object dependencies; convert after Level 0"
+      },
+      {
+        "level": 2,
+        "description": "Orchestrator and audit procedures \u2014 call Level 0 function and/or Level 1 logger",
+        "objects": [
+          "usp_AW19_AuditPricingViolations",
+          "usp_AW19_SalesCommissionPricingPipeline"
+        ],
+        "strategy": "Sequential within level: audit first (Moderate), main pipeline last (Complex); both need Level 0+1 signatures before starting"
+      }
+    ],
+    "dependency_edges": [
+      {
+        "source": "usp_AW19_SalesCommissionPricingPipeline",
+        "target": "usp_AW19_Log",
+        "relationship": "calls via EXEC (lines 150, 171, 216, 259, 313, 406, 454, 491, 524, 546, 549, 598)"
+      },
+      {
+        "source": "usp_AW19_SalesCommissionPricingPipeline",
+        "target": "ufn_AW19_SplitCsvInt",
+        "relationship": "calls via table-valued function reference in FROM clause (line 166)"
+      },
+      {
+        "source": "usp_AW19_AuditPricingViolations",
+        "target": "usp_AW19_Log",
+        "relationship": "calls via EXEC (lines 709-714)"
+      }
+    ],
+    "object_plans": {
+      "ufn_AW19_SplitCsvInt": {
+        "conversion_order": 1,
+        "complexity": "Simple (1.25)",
+        "estimated_tokens": 8000,
+        "dependencies_resolved": [],
+        "dependency_signatures": "none",
+        "conversion_instructions": [
+          "Line 47: Function signature \u2192 `def ufn_split_csv_int(csv_str: str | None) -> list[int]` \u2014 return a plain Python list since the only caller (line 166) uses it to build a filter set, not a joined DataFrame",
+          "Line 48: `RETURNS @t TABLE (Item INT NOT NULL)` \u2192 return `list[int]`; no DDL, no DataFrame needed at this level",
+          "Line 51: `COALESCE(@csv, N'')` \u2192 `csv_str = csv_str or ''`",
+          "Line 53: `REPLACE(REPLACE(@x, CHAR(10), ''), CHAR(13), '')) + ','` \u2192 `import re; csv_str = re.sub(r'[\\r\\n]', '', csv_str)` then split on ','",
+          "Lines 54-62: Entire WHILE loop (CHARINDEX / SUBSTRING / LTRIM/RTRIM / TRY_CONVERT) \u2192 replace wholesale with: `tokens = [t.strip() for t in csv_str.split(',')]; result = [int(t) for t in tokens if t.strip().lstrip('-').isdigit()]` \u2014 one-liner eliminates all manual string navigation",
+          "Line 59: `TRY_CONVERT(INT, @token) IS NOT NULL` \u2192 wrap `int(t)` in try/except ValueError; discard non-numeric tokens silently (matches TRY_CONVERT NULL-on-failure semantics)",
+          "Line 60: `INSERT @t (Item) VALUES (CONVERT(INT, @token))` \u2192 `result.append(int(t))` \u2014 list append replaces table insert",
+          "Line 63: `RETURN` \u2192 `return result`",
+          "Caller usage (line 166 of main pipeline): `customer_ids = ufn_split_csv_int(params.customer_ids_csv)` then use `F.col('CustomerID').isin(customer_ids)` for the semi-join filter \u2014 no DataFrame creation needed"
+        ],
+        "gotchas_relevant": [],
+        "limitations_found": [
+          "WHILE loop with manual string parsing eliminated \u2014 no TODO needed, full rewrite as Python list comprehension is straightforward",
+          "TABLE variable @t eliminated \u2014 return Python list directly"
+        ],
+        "strategy": "Direct conversion, single pass"
+      },
+      "usp_AW19_Log": {
+        "conversion_order": 2,
+        "complexity": "Simple (1.25)",
+        "estimated_tokens": 6000,
+        "dependencies_resolved": [],
+        "dependency_signatures": "none \u2014 depends only on external table dbo.AW19_RunLog",
+        "conversion_instructions": [
+          "Lines 28-34: Procedure signature \u2192 `@dataclass class RunLogEntry` with fields run_id: str, proc_name: str, step_name: str, step_status: str, message: str | None = None, complete: bool = False",
+          "Line 37: `SET NOCOUNT ON` \u2192 skip entirely",
+          "Lines 38-40: `INSERT dbo.AW19_RunLog (...)` \u2192 write a single-row DataFrame to a Delta Lake table `dbo.AW19_RunLog` using `spark.createDataFrame([row_dict], schema).write.format('delta').mode('append').saveAsTable('dbo.AW19_RunLog')`",
+          "Line 38: `RunId, ProcName, StepName, StepStatus, Message` \u2192 map directly to dataclass fields",
+          "Line 39: `SYSUTCDATETIME()` for StartedUtc \u2192 `datetime.now(timezone.utc)` \u2014 use Python stdlib, not F.current_timestamp(), since this runs in driver context",
+          "Line 40: `CASE WHEN @Complete = 1 THEN SYSUTCDATETIME() ELSE NULL END` \u2192 `datetime.now(timezone.utc) if complete else None` \u2014 Python ternary replaces CASE",
+          "Line 34: `@Complete BIT = 0` \u2192 `complete: bool = False` \u2014 BIT to Python bool (default False)",
+          "Line 29: `@RunId UNIQUEIDENTIFIER` \u2192 `run_id: str` \u2014 pass UUID string from caller; generate with `str(uuid.uuid4())` at pipeline start (line 147 of main proc)",
+          "Output function signature: `def log_step(spark: SparkSession, run_id: str, proc_name: str, step_name: str, step_status: str, message: str | None = None, complete: bool = False) -> None`",
+          "Consider wrapping in a `RunLogger` class (instance holds spark, run_id, proc_name) to avoid repeating those args on every call \u2014 12 call sites in main pipeline"
+        ],
+        "gotchas_relevant": [
+          "#10 BIT NULL handling \u2014 @Complete BIT has default 0 (not NULL), so safe to map directly to Python bool; but document that if NULL were passed, it would need `complete = bool(complete) if complete is not None else False`"
+        ],
+        "limitations_found": [
+          "dbo.AW19_RunLog table DDL (lines 10-22) must be pre-created as a Delta table before this function runs \u2014 add a `_ensure_log_table(spark)` setup function with CREATE TABLE IF NOT EXISTS",
+          "SYSNAME type for @ProcName \u2192 use plain str; no length constraint enforced in PySpark"
+        ],
+        "strategy": "Direct conversion, single pass"
+      },
+      "usp_AW19_ResolveTierOverride": {
+        "conversion_order": 3,
+        "complexity": "Simple (2.05)",
+        "estimated_tokens": 10000,
+        "dependencies_resolved": [],
+        "dependency_signatures": "none \u2014 depends only on external Person schema tables; NOT called by any discovered object",
+        "conversion_instructions": [
+          "Lines 608-611: Procedure signature \u2192 `def resolve_tier_override(spark: SparkSession, customer_id: int, current_tier: str) -> str` \u2014 OUTPUT parameter @ResolvedTier becomes the Python return value",
+          "Line 614: `SET NOCOUNT ON` \u2192 skip",
+          "Lines 616-619: `DECLARE @PhoneCount INT` etc. \u2192 plain Python variables: `phone_count: int`, `email_count: int`, `person_type: str | None`, `title: str | None`",
+          "Lines 621-623: Scalar variable assignment via SELECT from Person.Person \u2192 `row = spark.table('Person.Person').where(F.col('BusinessEntityID') == customer_id).select('PersonType', 'Title').first()` then `person_type = row['PersonType'] if row else None; title = row['Title'] if row else None`",
+          "Line 625: `SELECT @PhoneCount = COUNT(*) FROM Person.PersonPhone WHERE BusinessEntityID = @CustomerID` \u2192 `phone_count = spark.table('Person.PersonPhone').where(F.col('BusinessEntityID') == customer_id).count()`",
+          "Line 626: `SELECT @EmailCount = COUNT(*) FROM Person.EmailAddress WHERE BusinessEntityID = @CustomerID` \u2192 `email_count = spark.table('Person.EmailAddress').where(F.col('BusinessEntityID') == customer_id).count()`",
+          "Lines 629-636: CASE block on scalar variables \u2192 Python if/elif/else chain (not F.when \u2014 all values are Python scalars, not column expressions)",
+          "Line 631: `@PersonType = 'SC'` string comparison relies on CI_AS collation \u2192 `(person_type or '').upper() == 'SC'` to normalize case",
+          "Line 632: `@Title IN ('Mr.','Ms.','Mrs.','Dr.')` \u2192 `(title or '').strip() in {'Mr.', 'Ms.', 'Mrs.', 'Dr.'}` \u2014 exact match safe here since titles are standardized, but document assumption",
+          "Line 630: `@CurrentTier = 'Standard'` etc. \u2192 direct Python string equality; confirm upstream values are title-cased consistently (gotcha #2 risk if source data has mixed case)",
+          "Lines 625-626: Three separate Spark table reads per customer call \u2014 this function is designed for scalar/per-customer use; if called in bulk (batch), refactor to accept a pre-joined DataFrame instead of per-row lookups",
+          "Return statement: `return resolved_tier` replacing `SET @ResolvedTier = CASE...END`"
+        ],
+        "gotchas_relevant": [
+          "#2 Case-sensitive string comparison \u2014 lines 631-632 compare PersonType and Title against hardcoded literals; SQL Server CI_AS would match 'sc'='SC', Python would not; use `.upper()` or `.strip()` normalization",
+          "#2 Case-sensitive string comparison \u2014 line 630 compares @CurrentTier to 'Standard'/'Bronze'/'Silver'/'Gold'; ensure upstream tier assignment always produces title-cased strings"
+        ],
+        "limitations_found": [
+          "OUTPUT parameter @ResolvedTier (line 611) \u2192 return value; call sites must be updated from `EXEC ... @ResolvedTier OUTPUT` to `resolved = resolve_tier_override(spark, cid, tier)`",
+          "Scalar SELECT from .first() (lines 621-623) \u2014 if BusinessEntityID not found, row is None; add null guard: `if row is None: return current_tier`",
+          "# TODO: Per-row Spark table reads (lines 625-626) are efficient only for small lookup volumes; if called in a loop over many customers, rewrite as vectorized join on a customer DataFrame"
+        ],
+        "strategy": "Direct conversion, single pass"
+      },
+      "usp_AW19_AuditPricingViolations": {
+        "conversion_order": 4,
+        "complexity": "Moderate (3.25)",
+        "estimated_tokens": 20000,
+        "dependencies_resolved": [
+          "usp_AW19_Log"
+        ],
+        "dependency_signatures": "RunLogger class with method `log_step(step_name, status, message, complete=False) -> None`; OR standalone `def log_step(spark, run_id, proc_name, step_name, step_status, message=None, complete=False) -> None`",
+        "conversion_instructions": [
+          "Lines 643-647: Procedure signature \u2192 `def audit_pricing_violations(spark: SparkSession, run_id: str, start_date: date, end_date: date) -> tuple[DataFrame, int]` \u2014 @ViolationCount OUTPUT becomes second tuple element; violations DataFrame is first",
+          "Line 650: `SET NOCOUNT ON` \u2192 skip",
+          "Lines 652-654: `DECLARE @ProcName`, `@AuditStatus`, `@AuditMessage` \u2192 Python variables; proc_name as module-level constant `PROC_NAME = 'usp_AW19_AuditPricingViolations'`",
+          "Line 656: `IF OBJECT_ID('tempdb..#Violations') IS NOT NULL DROP TABLE #Violations` \u2192 skip entirely; PySpark DataFrame lifecycle is auto-managed",
+          "Lines 684-688: Build base joins \u2014 `detail = spark.table('Sales.SalesOrderDetail'); header = spark.table('Sales.SalesOrderHeader'); territory = spark.table('Sales.SalesTerritory'); product = spark.table('Production.Product')` then chain `.join()` calls with explicit `how=` parameter",
+          "Lines 685-686: `JOIN SalesOrderHeader ON SalesOrderID` \u2192 `detail.join(header, on='SalesOrderID', how='inner')`",
+          "Line 686: `JOIN SalesTerritory ON TerritoryID` \u2192 `.join(territory, on='TerritoryID', how='inner')`",
+          "Line 687: `JOIN Product ON ProductID` \u2192 `.join(product, on='ProductID', how='inner')`",
+          "Lines 688-689: LEFT JOINs to ProductSubcategory and ProductCategory \u2192 chain `.join(..., how='left')`",
+          "Lines 690-694: LEFT JOIN to AW19_PricingRules with date-range overlap condition \u2192 `pricing_rules = spark.table('dbo.AW19_PricingRules'); join_cond = (F.col('pr.CategoryName') == F.col('pc.Name')) & (F.col('pr.TerritoryGroup') == F.col('st.Group')) & (F.col('pr.EffectiveDate') <= F.col('h_order_date')) & (F.col('pr.ExpiryDate').isNull() | (F.col('pr.ExpiryDate') >= F.col('h_order_date')))` \u2014 the ExpiryDate IS NULL condition is critical for NULL handling",
+          "Line 693: `pr.EffectiveDate <= CAST(h.OrderDate AS DATE)` and line 694: `(pr.ExpiryDate IS NULL OR pr.ExpiryDate >= CAST(h.OrderDate AS DATE))` \u2192 must use `F.col('ExpiryDate').isNull() | (F.col('ExpiryDate') >= order_date_col)` \u2014 SQL OR with NULL on left side is NOT automatically handled in PySpark the same way as SQL WHERE",
+          "Line 695: `WHERE CAST(h.OrderDate AS DATE) BETWEEN @StartDate AND @EndDate` \u2192 `.where(F.col('OrderDate').cast('date').between(F.lit(start_date), F.lit(end_date)))` \u2014 cast start_date/end_date as `F.lit()` with DateType",
+          "Lines 696-702: Multi-predicate WHERE with OR (violation conditions) \u2192 `.where((F.col('UnitPriceDiscount') > F.coalesce(F.col('DiscountPct'), F.lit(0)) + F.lit(0.02)) | (F.col('UnitPriceDiscount') < 0) | (F.col('UnitPrice') <= 0) | (F.col('LineTotal') < 0) | (F.col('OrderQty') <= 0))` \u2014 each condition wrapped in parentheses, joined with `|`",
+          "Lines 664-671: ViolationType CASE block \u2192 chained `F.when(...).when(...).otherwise('OK')` \u2014 convert in same order as SQL CASE (order matters for overlapping conditions)",
+          "Lines 672-679: Severity CASE block \u2192 same `F.when` chain producing integer values 0/2/3",
+          "Line 663: `COALESCE(pr.DiscountPct, 0)` \u2192 `F.coalesce(F.col('DiscountPct'), F.lit(0))` \u2014 note: 0 must be cast to DecimalType(5,4) to match column type: `F.lit(Decimal('0')).cast(DecimalType(5,4))`",
+          "Line 682: `CAST(h.OrderDate AS DATE) AS OrderDate` \u2192 `F.col('OrderDate').cast('date').alias('OrderDate')`",
+          "Line 683: `INTO #Violations` \u2192 `violations_df = (...).cache(); violations_df.count()  # force materialization`",
+          "Line 704: `SELECT @ViolationCount = COUNT(*) FROM #Violations` \u2192 `violation_count = violations_df.count()` \u2014 BUT since .count() was already called for cache materialization, store that result: `violation_count = violations_df.count()` (single call OK since cached)",
+          "Lines 706-707: `@AuditStatus` and `@AuditMessage` Python variables \u2192 `audit_status = 'WARN' if violation_count > 0 else 'OK'; audit_message = f'Violations found: {violation_count}'`",
+          "Lines 709-714: `EXEC dbo.usp_AW19_Log ...` \u2192 `log_step(spark, run_id, PROC_NAME, 'AUDIT_VIOLATIONS', audit_status, audit_message, complete=True)`",
+          "Lines 716-721: Final SELECT ORDER BY Severity DESC, OrderDate DESC \u2192 `return violations_df.orderBy(F.col('Severity').desc_nulls_last(), F.col('OrderDate').desc_nulls_last()), violation_count`"
+        ],
+        "gotchas_relevant": [
+          "#3 NULL ordering in ORDER BY \u2014 line 721 `ORDER BY Severity DESC, OrderDate DESC`; SQL Server: NULLs last in DESC. PySpark: NULLs FIRST in DESC. Use `.desc_nulls_last()` on both columns",
+          "#2 Case-sensitive string comparison \u2014 ViolationType string literals ('OVER_DISCOUNT', 'OK', etc.) are generated here, not compared; no CI risk. However CategoryName comparisons if used downstream must use F.lower()",
+          "#5 Decimal precision loss \u2014 line 697 `d.UnitPriceDiscount > COALESCE(pr.DiscountPct, 0) + 0.02` mixes DECIMAL(5,4) with float literal; cast 0.02 as `F.lit(Decimal('0.02')).cast(DecimalType(5,4))` and set `spark.sql.decimalOperations.allowPrecisionLoss=false`"
+        ],
+        "limitations_found": [
+          "OUTPUT parameter @ViolationCount (line 647) \u2192 return as second element of tuple; callers must unpack: `violations_df, count = audit_pricing_violations(...)`",
+          "OBJECT_ID check at line 656 \u2192 skip; no TODO needed, auto-managed",
+          "# TODO: Constraint \u2014 LEFT JOIN to AW19_PricingRules (lines 690-694) may match multiple rules per order line (no DISTINCT on RuleId in the join predicate); SQL Server would return one row per rule match. If multiple rules can match the same (CategoryName, TerritoryGroup, date) combination, add `.dropDuplicates(['SalesOrderDetailID'])` after the join or pre-filter rules to the most-specific match"
+        ],
+        "strategy": "Standard conversion, check gotchas list"
+      },
+      "usp_AW19_SalesCommissionPricingPipeline": {
+        "conversion_order": 5,
+        "complexity": "Complex (7.0)",
+        "estimated_tokens": 120000,
+        "dependencies_resolved": [
+          "ufn_AW19_SplitCsvInt",
+          "usp_AW19_Log"
+        ],
+        "dependency_signatures": "def ufn_split_csv_int(csv_str: str | None) -> list[int]; class RunLogger: def __init__(self, spark, run_id, proc_name); def log_step(self, step_name, status, message=None, complete=False) -> None",
+        "conversion_instructions": [
+          "Lines 135-143: Procedure parameters \u2192 `@dataclass class PipelineParams: start_date: date | None = None; end_date: date | None = None; territory_group_filter: str | None = None; customer_ids_csv: str | None = None; min_order_amt: Decimal = Decimal('0'); top_n_sales_person: int = 10; emit_debug: bool = False`",
+          "Line 145: `SET NOCOUNT ON` \u2192 skip",
+          "Line 147: `DECLARE @RunId UNIQUEIDENTIFIER = NEWID()` \u2192 `run_id = str(uuid.uuid4())`",
+          "Line 148: `DECLARE @ProcName SYSNAME = N'usp_AW19_SalesCommissionPricingPipeline'` \u2192 `PROC_NAME = 'usp_AW19_SalesCommissionPricingPipeline'`",
+          "Line 150: `EXEC dbo.usp_AW19_Log @RunId, @ProcName, N'START', N'START', ...` \u2192 `logger = RunLogger(spark, run_id, PROC_NAME); logger.log_step('START', 'START', 'Pipeline initiated')`",
+          "Lines 152-158: NULL date fallback SELECT MIN/MAX from SalesOrderHeader \u2192 `if params.start_date is None or params.end_date is None: bounds = spark.table('Sales.SalesOrderHeader').agg(F.min('OrderDate').alias('min_d'), F.max('OrderDate').alias('max_d')).first(); start_date = params.start_date or bounds['min_d']; end_date = params.end_date or bounds['max_d']`",
+          "Line 160: `BEGIN TRY` \u2192 `try:` block wrapping all step logic",
+          "Lines 163-166: STEP 1 \u2014 #CustomerFilter: `customer_ids = ufn_split_csv_int(params.customer_ids_csv)` \u2014 returns Python list[int]; skip DROP TABLE check",
+          "Line 168-170: `@HasCustFilter BIT = CASE WHEN EXISTS(...) THEN 1 ELSE 0 END` \u2192 `has_cust_filter = len(customer_ids) > 0`",
+          "Line 171: EXEC Log STEP1 \u2192 `logger.log_step('STEP1_CustomerFilter', 'OK')`",
+          "Lines 176-210: STEP 2 \u2014 #BaseOrders: Build multi-table DataFrame. INNER JOIN SalesTerritory on TerritoryID; LEFT JOINs to SalesPerson, Person.Person, HumanResources.Employee. For the sqa subquery (lines 200-205): pre-aggregate separately \u2192 `sqa = spark.table('Sales.SalesPersonQuotaHistory').where(F.col('QuotaDate').cast('date').between(start_date, end_date)).groupBy('BusinessEntityID').agg(F.sum('SalesQuota').alias('SalesQuota'))` then LEFT JOIN",
+          "Line 191: `COALESCE(sp.FirstName + ' ' + sp.LastName, 'Online/Unknown')` \u2192 `F.coalesce(F.concat_ws(' ', F.col('FirstName'), F.col('LastName')), F.lit('Online/Unknown'))`",
+          "Line 193: `COALESCE(sqa.SalesQuota, 0)` \u2192 `F.coalesce(F.col('SalesQuota'), F.lit(Decimal('0')))`",
+          "Lines 180-181: `CAST(h.OrderDate AS DATE)`, `CAST(h.ShipDate AS DATE)` \u2192 `F.col('OrderDate').cast('date')`, `F.col('ShipDate').cast('date')`",
+          "Line 206: `WHERE CAST(h.OrderDate AS DATE) BETWEEN @StartDate AND @EndDate` \u2192 `.where(F.col('OrderDate').cast('date').between(F.lit(start_date), F.lit(end_date)))`",
+          "Line 208: `@TerritoryGroupFilter IS NULL OR st.[Group] = @TerritoryGroupFilter` \u2192 apply conditionally: `if params.territory_group_filter: base = base.where(F.col('TerritoryGroup') == params.territory_group_filter)`",
+          "Lines 209-210: Customer filter: `if has_cust_filter: base = base.where(F.col('CustomerID').isin(customer_ids))`",
+          "Lines 212-214: Clustered + non-clustered indexes with INCLUDE \u2192 `.repartition('SalesOrderID').cache(); base_orders.count()  # force materialization` \u2014 add comment `# Indexes CX_BaseOrders / IX_BaseOrders_Cust / IX_BaseOrders_SP: no B-tree indexes in Spark; repartition simulates data locality`",
+          "Lines 221-257: STEP 3 \u2014 #Lines: JOIN SalesOrderDetail to #BaseOrders (base_orders_df), then to Production tables with LEFT JOINs. `p.ListPrice - p.StandardCost AS GrossMarginUnit` \u2192 `(F.col('ListPrice') - F.col('StandardCost')).alias('GrossMarginUnit')`. Cache after materialization.",
+          "Lines 264-309: STEP 4 \u2014 #CustomerTier: CTE `CustRevenue` \u2192 `cust_revenue = lines_df.groupBy('CustomerID', 'TerritoryGroup').agg(F.sum('LineTotal').alias('TotalRevenue'), F.sum(F.when(F.col('CategoryName')=='Bikes', F.col('LineTotal')).otherwise(0)).alias('BikeRevenue'), ..., F.countDistinct('SalesOrderID').alias('OrderCount'))`",
+          "Lines 286-307: 3-level nested CASE for CustomerTier \u2192 chained F.when: `F.when(F.col('TerritoryGroup') == 'North America', F.when(F.col('TotalRevenue') >= 50000, 'Gold').when(F.col('TotalRevenue') >= 20000, 'Silver').when(F.col('TotalRevenue') >= 5000, 'Bronze').otherwise('Standard')).when(F.col('TerritoryGroup') == 'Europe', F.when(...).when(...).otherwise('Standard')).when(F.col('TerritoryGroup') == 'Pacific', ...).otherwise(F.when(F.col('TotalRevenue') >= 50000, 'Gold')...)`",
+          "Lines 323-396: STEP 5 \u2014 #PricedLines: Three massive CASE blocks (A=DiscountPct, B=CommissionPct, C=TaxOverride). Convert each to F.when chain. Block A (lines 323-360) dispatches first on CategoryName+SubCategoryName, then TerritoryGroup, then CustomerTier \u2014 3 nesting levels each generating DecimalType(5,4) literals. Block B (lines 362-386) dispatches on CategoryName\u2192TerritoryGroup\u2192CustomerTier. Block C (lines 388-395) is a simple 4-branch CASE on TerritoryGroup/CountryRegionCode. All string comparisons use exact match \u2014 verify CI gotcha #2 for TerritoryGroup/CustomerTier values",
+          "Lines 397-404: `INTO #PricedLines` + clustered/non-clustered indexes \u2192 `.cache(); priced_lines.count()` \u2014 add repartition on `('SalesOrderID', 'SalesOrderDetailID')` to simulate CX_PricedLines",
+          "Lines 411-450: STEP 6 \u2014 #LineFinals: `AdjustedRevenue = F.col('LineTotal') * (F.lit(1.0) - F.col('AppliedDiscountPct'))`. `NULLIF(pl.LineTotal * (1.0-...), 0)` at line 442 \u2192 `F.when(adj_rev_expr == 0, F.lit(None)).otherwise(adj_rev_expr)` \u2014 avoid re-computing adj_rev; assign to a named column first then reference it. `GrossMarginPct` at lines 439-443 divides by the same NULLIF expression \u2014 use `F.when(F.col('AdjustedRevenue') == 0, F.lit(None)).otherwise((F.col('AdjustedRevenue') - (F.col('StandardCost') * F.col('OrderQty'))) / F.col('AdjustedRevenue'))`",
+          "Lines 459-489: STEP 7 \u2014 #SPSummary: GROUP BY SalesPersonID, SalesPersonName, TerritoryGroup, TerritoryName. NTILE(4) OVER (ORDER BY SUM(lf.AdjustedRevenue) DESC) after GROUP BY \u2192 compute aggregation first, then apply window: `sp_summary = line_finals.where(F.col('SalesPersonID').isNotNull()).groupBy('SalesPersonID','SalesPersonName','TerritoryGroup','TerritoryName').agg(F.countDistinct('SalesOrderID').alias('TotalOrders'), F.sum('OriginalLineTotal').alias('TotalOriginalRevenue'), ...); ntile_window = Window.orderBy(F.col('TotalAdjustedRevenue').desc_nulls_last()); sp_summary = sp_summary.withColumn('RevenueQuartile', F.ntile(4).over(ntile_window))`",
+          "Lines 476-483: QuotaAttainmentBand CASE with NULLIF(MAX(bo.SalesQuota),0) denominator \u2192 `quota_col = F.coalesce(F.col('SalesQuota'), F.lit(Decimal('0'))); attainment = F.col('TotalAdjustedRevenue') / F.when(quota_col == 0, F.lit(None)).otherwise(quota_col); attainment_band = F.when(quota_col == 0, 'No Quota').when(attainment >= 1.20, 'Overachiever').when(attainment >= 1.00, 'On Target').when(attainment >= 0.80, 'Near Target').when(attainment >= 0.60, 'Below Target').otherwise('At Risk')`",
+          "Lines 496-520: STEP 8 \u2014 #CustomerSummary: CTE CustAgg \u2192 `cust_agg = line_finals_df.groupBy('CustomerID').agg(F.countDistinct('SalesOrderID').alias('OrderCount'), F.sum('AdjustedRevenue').alias('TotalRevenue'), ...)`. `DATEDIFF(DAY, MAX(lf.OrderDate), @EndDate)` at line 504 \u2192 **REVERSED ARGS**: `F.datediff(F.lit(end_date), F.col('LastOrderDate')).alias('RecencyDays')` \u2014 gotcha #1",
+          "Lines 515-517: Three NTILE(5) window functions: RScore, FScore, MScore \u2192 `recency_w = Window.orderBy(F.col('RecencyDays').asc_nulls_last()); freq_w = Window.orderBy(F.col('OrderCount').desc_nulls_last()); monetary_w = Window.orderBy(F.col('TotalRevenue').desc_nulls_last())` \u2014 all need explicit nulls direction \u2014 gotcha #3",
+          "Line 520: JOIN to Person.Person on BusinessEntityID = CustomerID \u2192 `.join(spark.table('Person.Person').select('BusinessEntityID','FirstName','LastName'), on=F.col('CustomerID') == F.col('BusinessEntityID'), how='inner')` then `F.concat_ws(' ', 'FirstName', 'LastName').alias('CustomerName')`",
+          "Lines 529-544: STEP 9 \u2014 #TerritoryBenchmarks: Simple GROUP BY on #SPSummary \u2192 `territory_benchmarks = sp_summary_df.groupBy('TerritoryGroup').agg(F.countDistinct('SalesPersonID').alias('SalesPersonCount'), F.sum('TotalAdjustedRevenue').alias('TerritoryTotalRevenue'), F.avg('TotalAdjustedRevenue').alias('TerritoryAvgRevSP'), ...)` \u2014 no window functions needed",
+          "Lines 551-592: STEP 10 \u2014 Final output with TOP N + correlated subqueries. First resolve correlated subqueries at lines 579-586: UniqueCustomers \u2192 pre-aggregate: `cust_per_sp = line_finals_df.join(customer_summary_df, on='CustomerID', how='inner').groupBy('SalesPersonID').agg(F.countDistinct('CustomerID').alias('UniqueCustomers'))`; AvgCustomerRFMScore \u2192 `rfm_per_sp = line_finals_df.join(customer_summary_df, on='CustomerID', how='inner').groupBy('SalesPersonID').agg(F.avg((F.col('RScore') + F.col('FScore') + F.col('MScore')).cast('double')).alias('AvgCustomerRFMScore'))`",
+          "Lines 570-576: NULLIF(tb.TerritoryAvgRevSP, 0) for percentage delta \u2192 `F.when(F.col('TerritoryAvgRevSP') == 0, F.lit(None)).otherwise((F.col('TotalAdjustedRevenue') - F.col('TerritoryAvgRevSP')) / F.col('TerritoryAvgRevSP')).alias('RevenueVsTerritoryPctDelta')`",
+          "Lines 587-589: `@StartDate AS SnapshotStartDate, @EndDate AS SnapshotEndDate, @RunId AS RunId` \u2192 `F.lit(start_date).alias('SnapshotStartDate'), F.lit(end_date).alias('SnapshotEndDate'), F.lit(run_id).alias('RunId')`",
+          "Lines 551-552: `SELECT TOP (@TopNSalesPerson) ... ORDER BY sp.TotalAdjustedRevenue DESC` \u2192 `.orderBy(F.col('TotalAdjustedRevenue').desc_nulls_last()).limit(params.top_n_sales_person)`",
+          "Lines 594-600: `END CATCH` \u2192 Python except: `except Exception as exc: err_msg = f'Error {type(exc).__name__} at pipeline: {str(exc)}'; logger.log_step('END', 'FAIL', err_msg, complete=True); raise`",
+          "Line 597: `CONCAT(N'Error ', ERROR_NUMBER(), N' at line ', ERROR_LINE(), N': ', ERROR_MESSAGE())` \u2192 Python f-string; no equivalent to ERROR_NUMBER()/ERROR_LINE() in Python \u2014 use `traceback.format_exc()` for full stack or `str(exc)` for message only",
+          "Line 549: Success log \u2192 `logger.log_step('END', 'SUCCESS', 'Completed', complete=True)` placed before final SELECT"
+        ],
+        "gotchas_relevant": [
+          "#1 DATEDIFF argument order reversed \u2014 line 504: `DATEDIFF(DAY, MAX(lf.OrderDate), @EndDate)` must become `F.datediff(F.lit(end_date), F.col('LastOrderDate'))` NOT `F.datediff(F.col('LastOrderDate'), F.lit(end_date))` \u2014 silent sign flip",
+          "#2 Case-sensitive string comparison \u2014 lines 208, 287, 292, 297, 324, 330, 336, 341, 347, 353, 364, 370, 375, 380, 390-393 all compare TerritoryGroup, CategoryName, SubCategoryName, CustomerTier against string literals; SQL Server CI_AS would match 'bikes'='Bikes'. PySpark will NOT. Verify source data always produces title-cased values; if not, add F.lower() normalization on both sides of each comparison",
+          "#3 NULL ordering in ORDER BY \u2014 line 484 NTILE ORDER BY TotalAdjustedRevenue DESC (NULLs last in SQL Server, FIRST in PySpark): use `.desc_nulls_last()`; lines 515-517 NTILE ORDER BY RecencyDays ASC / OrderCount DESC / TotalRevenue DESC: all need explicit nulls direction",
+          "#4 Window frame RANGE includes duplicates \u2014 lines 515-517 NTILE window functions do not have explicit frame \u2014 safe, NTILE does not use RANGE frame. However SUM window functions if added later must use `.rowsBetween()`",
+          "#5 Decimal precision loss \u2014 lines 432-448 compute `LineTotal * (1.0 - AppliedDiscountPct)`, `LineTotal * AppliedDiscountPct`, chained multiplications. Set `spark.sql.decimalOperations.allowPrecisionLoss=false` and ensure AppliedDiscountPct columns are cast to `DecimalType(5,4)` not left as double literals"
+        ],
+        "limitations_found": [
+          "Correlated scalar subqueries at lines 579-586 (UniqueCustomers, AvgCustomerRFMScore) \u2014 cannot auto-convert; must be pre-aggregated and flattened to LEFT JOINs before the final SELECT",
+          "Temp table indexes with INCLUDE columns at lines 213-214, 255-257, 403-404 \u2014 no B-tree indexes in Spark; use .repartition(col).cache() as best proxy; document as `# TODO: Constraint \u2014 INCLUDE columns on indexes not enforced; repartition provides data locality only`",
+          "OBJECT_ID tempdb checks at lines 163, 174, 219, 262, 316, 409, 457, 494, 527 \u2014 skip entirely; no TODO needed",
+          "BEGIN TRY / END CATCH at lines 160/594-600 \u2014 replace with Python try/except; `# TODO: Transaction semantics at lines 160/594 \u2014 consider Delta Lake for ACID rollback if pipeline partial-write atomicity is required`",
+          "SYSUTCDATETIME() usage (via usp_AW19_Log calls) \u2014 handled in RunLogger using datetime.now(timezone.utc)"
+        ],
+        "strategy": "Careful conversion, add TODO for ambiguous patterns \u2014 break into 10 named _step functions matching SQL STEPs; convert correlated subqueries manually; validate decimal precision config before running"
+      }
+    }
+  },
+  "summary": {
+    "total_objects": 5,
+    "conversion_levels": 3,
+    "levels": [
+      {
+        "level": 0,
+        "objects": [
+          "ufn_AW19_SplitCsvInt"
+        ],
+        "strategy": "Parallel conversion \u2014 convert before any procedure that calls it"
+      },
+      {
+        "level": 1,
+        "objects": [
+          "usp_AW19_Log",
+          "usp_AW19_ResolveTierOverride"
+        ],
+        "strategy": "Parallel conversion \u2014 both have zero intra-object dependencies; convert after Level 0"
+      },
+      {
+        "level": 2,
+        "objects": [
+          "usp_AW19_AuditPricingViolations",
+          "usp_AW19_SalesCommissionPricingPipeline"
+        ],
+        "strategy": "Sequential within level: audit first (Moderate), main pipeline last (Complex); both need Level 0+1 signatures before starting"
+      }
+    ],
+    "dependency_count": 3,
+    "dependency_edges": [
+      {
+        "source": "usp_AW19_SalesCommissionPricingPipeline",
+        "target": "usp_AW19_Log",
+        "relationship": "calls via EXEC (lines 150, 171, 216, 259, 313, 406, 454, 491, 524, 546, 549, 598)"
+      },
+      {
+        "source": "usp_AW19_SalesCommissionPricingPipeline",
+        "target": "ufn_AW19_SplitCsvInt",
+        "relationship": "calls via table-valued function reference in FROM clause (line 166)"
+      },
+      {
+        "source": "usp_AW19_AuditPricingViolations",
+        "target": "usp_AW19_Log",
+        "relationship": "calls via EXEC (lines 709-714)"
+      }
+    ]
+  },
+  "cost_usd": 0.42588479999999995,
+  "duration_seconds": 264.4,
+  "cumulative_cost_usd": 0.6923393999999999,
+  "cumulative_duration_seconds": 402.09999999999997
+}

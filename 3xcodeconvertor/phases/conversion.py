@@ -27,6 +27,7 @@ from models import (
     ConversionStatus,
     FileInventory,
     ObjectPlan,
+    OutputGroup,
     SQLObject,
 )
 
@@ -91,6 +92,233 @@ async def convert_all(
                 return results
 
     return results
+
+
+async def convert_all_grouped(
+    inventories: list[FileInventory],
+    plan: ConversionPlan,
+    output_groups: list[OutputGroup],
+    options: ClaudeAgentOptions,
+    interactive_options: ClaudeAgentOptions | None,
+    config: ConverterConfig,
+) -> list[ConversionResult]:
+    """Convert SQL objects grouped into production-style output modules.
+
+    Each OutputGroup becomes a single .py file. Groups are converted in
+    dependency order: utilities first, then standalone, then main pipeline.
+    """
+    # Build lookup: object_name -> (SQLObject, FileInventory)
+    obj_lookup: dict[str, tuple[SQLObject, FileInventory]] = {}
+    for inv in inventories:
+        for obj in inv.objects:
+            obj_lookup[obj.name] = (obj, inv)
+
+    results: list[ConversionResult] = []
+    registry: dict[str, str] = {}  # group_name -> exported signatures
+    total_cost = 0.0
+
+    # Sort groups: utilities first, standalone next, main_pipeline last
+    group_order = {"utilities": 0, "standalone": 1, "main_pipeline": 2}
+    sorted_groups = sorted(output_groups, key=lambda g: group_order.get(g.group_type, 1))
+
+    for group in sorted_groups:
+        # Collect objects for this group
+        group_objects: list[tuple[str, SQLObject, FileInventory, ObjectPlan | None]] = []
+        for name in group.objects:
+            if name in obj_lookup:
+                obj, inv = obj_lookup[name]
+                obj_plan = plan.object_plans.get(name)
+                group_objects.append((name, obj, inv, obj_plan))
+
+        if not group_objects:
+            continue
+
+        result = await _convert_group(
+            group=group,
+            objects=group_objects,
+            registry=registry,
+            options=options,
+            config=config,
+        )
+
+        results.append(result)
+        total_cost += result.cost_usd
+
+        if result.status == ConversionStatus.CONVERTED and result.signature:
+            registry[group.group_name] = result.signature
+
+        if total_cost >= config.total_budget_usd:
+            logger.warning("Budget limit reached ($%.2f). Stopping conversion.", total_cost)
+            return results
+
+    return results
+
+
+async def _convert_group(
+    group: OutputGroup,
+    objects: list[tuple[str, SQLObject, FileInventory, ObjectPlan | None]],
+    registry: dict[str, str],
+    options: ClaudeAgentOptions,
+    config: ConverterConfig,
+) -> ConversionResult:
+    """Convert a group of related SQL objects into a single .py module."""
+    output_path = config.pyspark_output_dir / group.output_filename
+
+    # Build the multi-object source section
+    source_sections: list[str] = []
+    instructions_sections: list[str] = []
+    all_references: list[str] = []
+
+    for name, obj, inv, obj_plan in objects:
+        source_sections.append(
+            f"### {name} ({obj.type}, lines {obj.start_line}-{obj.end_line}, "
+            f"{obj.line_count} lines, {obj.complexity_level})\n"
+            f"Read using: Read tool with file_path=\"{Path(inv.file_path).resolve()}\", "
+            f"offset={obj.start_line - 1}, limit={obj.line_count}"
+        )
+
+        if obj_plan:
+            instr = "\n".join(f"    - {inst}" for inst in obj_plan.conversion_instructions)
+            gotchas = "\n".join(f"    - {g}" for g in obj_plan.gotchas_relevant)
+            section = f"  **{name}**:\n{instr}"
+            if gotchas:
+                section += f"\n  Gotchas:\n{gotchas}"
+            if obj_plan.limitations_found:
+                lims = "\n".join(f"    - {lim}" for lim in obj_plan.limitations_found)
+                section += f"\n  LIMITATIONS (add TODO comments):\n{lims}"
+            instructions_sections.append(section)
+
+        all_references.extend(obj.references)
+
+    # Build dependency context from previously converted groups
+    dep_context = _build_dependency_context(
+        list(set(all_references) - {name for name, *_ in objects}),
+        registry,
+    )
+
+    dialect = objects[0][2].dialect if objects else "unknown"
+    object_names = ", ".join(name for name, *_ in objects)
+
+    # Determine module description based on group type
+    if group.group_type == "utilities":
+        module_guidance = (
+            "This is a **utilities module**. Organize as:\n"
+            "  - Shared imports at top\n"
+            "  - Pure functions first (no SparkSession dependency)\n"
+            "  - Utility classes/helpers next\n"
+            "  - No CLI entry point needed — this is imported by other modules"
+        )
+    elif group.group_type == "main_pipeline":
+        module_guidance = (
+            "This is the **main pipeline module**. Organize as:\n"
+            "  - Imports at top (including from utils if applicable)\n"
+            "  - Private helper functions (_step_*, _helper_*)\n"
+            "  - Main `run_pipeline(spark, params)` function that orchestrates all steps\n"
+            "  - CLI entry point with `if __name__ == '__main__':`"
+        )
+    else:
+        module_guidance = (
+            "This is a **standalone module** (independently schedulable job). Include:\n"
+            "  - `run_pipeline(spark, params)` entry point\n"
+            "  - CLI with `if __name__ == '__main__':`"
+        )
+
+    prompt = f"""Convert these related SQL objects into a single production-quality PySpark module.
+
+## OUTPUT FILE
+Write to: {output_path.resolve()}
+Module: {group.output_filename} ({group.group_type})
+
+## MODULE STRUCTURE
+{module_guidance}
+
+## SQL OBJECTS TO CONVERT ({len(objects)} objects)
+Dialect: {dialect}
+Objects: {object_names}
+
+{chr(10).join(source_sections)}
+
+Read ALL source sections above before starting conversion.
+
+## CONVERSION INSTRUCTIONS (from analysis phase)
+{chr(10).join(instructions_sections) or "Follow standard conversion patterns for all objects."}
+
+## DEPENDENCY CONTEXT (other modules you may reference)
+{dep_context or "No external dependencies — this group is self-contained."}
+
+## RULES
+- Combine all objects into ONE cohesive .py file
+- Objects within this module should call each other directly (no imports needed)
+- Use `from pyspark.sql import functions as F` — always use F. prefix
+- If this module imports from utils.py, use `from utils import <function_name>`
+- After writing, use the validate_pyspark_syntax tool to check the output file
+- If validation fails, fix the error and rewrite"""
+
+    logger.info(
+        "  Converting group [%s]: %s → %s (%d objects)",
+        group.group_type, group.group_name, group.output_filename, len(objects),
+    )
+
+    result = ConversionResult(
+        object_name=group.group_name,
+        output_file=str(output_path),
+    )
+
+    for attempt in range(config.max_retries):
+        try:
+            async for message in query(prompt=prompt, options=options):
+                if isinstance(message, AssistantMessage):
+                    if config.verbose:
+                        for block in message.content:
+                            if isinstance(block, ToolUseBlock):
+                                logger.debug("    Tool: %s", block.name)
+
+                elif isinstance(message, ResultMessage):
+                    result.cost_usd = message.total_cost_usd
+                    result.turns_used = message.num_turns
+                    result.duration_ms = message.duration_ms
+                    result.session_id = message.session_id
+
+                    if output_path.exists():
+                        result.status = ConversionStatus.CONVERTED
+                        result.signature = _extract_group_signatures(output_path)
+                        logger.info(
+                            "    Converted [%s]: $%.4f | %d turns | %dms",
+                            group.output_filename,
+                            result.cost_usd, result.turns_used, result.duration_ms,
+                        )
+                    else:
+                        result.status = ConversionStatus.FAILED
+                        result.error = "Output file was not created"
+                        logger.warning("    Failed: output file not created")
+
+            break  # Success, no retry needed
+
+        except Exception as e:
+            logger.warning("    Attempt %d failed: %s", attempt + 1, e)
+            if attempt < config.max_retries - 1:
+                wait = config.retry_backoff_base ** attempt
+                logger.info("    Retrying in %.1fs...", wait)
+                await asyncio.sleep(wait)
+            else:
+                result.status = ConversionStatus.FAILED
+                result.error = str(e)
+
+    return result
+
+
+def _extract_group_signatures(file_path: Path) -> str:
+    """Extract all public function signatures from a grouped module."""
+    try:
+        content = file_path.read_text(encoding="utf-8")
+        sigs: list[str] = []
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("def ") and not stripped.startswith("def _"):
+                sigs.append(stripped.rstrip(":"))
+        return "; ".join(sigs) if sigs else ""
+    except OSError:
+        return ""
 
 
 # ── Parallel Conversion (Automated Mode) ──────────────────────────────────────

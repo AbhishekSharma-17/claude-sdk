@@ -188,6 +188,12 @@ def main() -> None:
     if report.validation_issues:
         print(f"  Validation issues: {len(report.validation_issues)}")
 
+    # Confidence scores
+    if report.confidence_scores:
+        print(f"\n  Confidence:        {report.overall_confidence:.0f}% overall")
+        for cs in report.confidence_scores:
+            print(f"    {cs.file}: {cs.score:.0f}% [{cs.grade}]")
+
     ai = report.developer_action_items
     if ai.auto_fixed:
         print(f"  Auto-fixed:        {len(ai.auto_fixed)} issue(s)")

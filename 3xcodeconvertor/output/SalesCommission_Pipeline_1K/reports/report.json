@@ -1,0 +1,553 @@
+{
+  "total_objects": 5,
+  "converted": 5,
+  "failed": 0,
+  "skipped": 0,
+  "needs_review": 0,
+  "total_cost_usd": 3.1713126,
+  "total_duration_ms": 1043329,
+  "file_complexity": "Standard script",
+  "cost_breakdown": {
+    "discovery": 0.2664546,
+    "planning": 0.42588479999999995,
+    "conversion": 1.6796173499999998,
+    "validation": 0.6446841,
+    "auto_fix": 0.15467175
+  },
+  "phase_timings": {
+    "discovery_seconds": 137.7,
+    "planning_seconds": 264.4,
+    "conversion_seconds": 723.6,
+    "validation_seconds": 377.3,
+    "auto_fix_seconds": 84.0,
+    "total_seconds": 1587.0
+  },
+  "objects": [
+    {
+      "object_name": "ufn_AW19_SplitCsvInt",
+      "status": "converted",
+      "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/SalesCommission_Pipeline_1K/pyspark/ufn_aw19_split_csv_int.py",
+      "signature": "def ufn_split_csv_int(csv_str: str | None) -> list[int]",
+      "cost_usd": 0.0705777,
+      "turns_used": 5,
+      "duration_ms": 43853,
+      "session_id": "32dd519d-cce0-48f5-a08e-799986d4b7dc",
+      "error": null
+    },
+    {
+      "object_name": "usp_AW19_Log",
+      "status": "converted",
+      "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/SalesCommission_Pipeline_1K/pyspark/aw19_log.py",
+      "signature": "def run_pipeline(spark: SparkSession, params: argparse.Namespace) -> None",
+      "cost_usd": 0.10582079999999999,
+      "turns_used": 5,
+      "duration_ms": 64426,
+      "session_id": "83bdb418-3ce4-46d7-b892-0c9a7db0f4e5",
+      "error": null
+    },
+    {
+      "object_name": "usp_AW19_ResolveTierOverride",
+      "status": "converted",
+      "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/SalesCommission_Pipeline_1K/pyspark/aw19_resolve_tier_override.py",
+      "signature": "def run_pipeline(spark: SparkSession, params: argparse.Namespace) -> str",
+      "cost_usd": 0.0844623,
+      "turns_used": 5,
+      "duration_ms": 57250,
+      "session_id": "d4a611a0-006c-4e5a-af82-d981ae893d21",
+      "error": null
+    },
+    {
+      "object_name": "usp_AW19_AuditPricingViolations",
+      "status": "converted",
+      "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/SalesCommission_Pipeline_1K/pyspark/aw19_audit_pricing_violations.py",
+      "signature": "def _step1_load_and_join(",
+      "cost_usd": 0.4405405499999999,
+      "turns_used": 5,
+      "duration_ms": 268618,
+      "session_id": "ecc8f379-d7a0-49e9-8c2d-f17d162c9658",
+      "error": null
+    },
+    {
+      "object_name": "usp_AW19_SalesCommissionPricingPipeline",
+      "status": "converted",
+      "output_file": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/SalesCommission_Pipeline_1K/pyspark/aw19_sales_commission_pricing_pipeline.py",
+      "signature": "def _step1_customer_filter(params: PipelineParams) -> List[int]",
+      "cost_usd": 0.9782159999999999,
+      "turns_used": 6,
+      "duration_ms": 609182,
+      "session_id": "ea6b6b3f-e8da-4851-89b8-d0b6c54574c5",
+      "error": null
+    }
+  ],
+  "validation_issues": [
+    {
+      "file": "aw19_audit_pricing_violations.py",
+      "severity": "HIGH",
+      "message": "violations_df is .cache()d at line 328 but .unpersist() is never called. The cached DataFrame is held in memory for the lifetime of the SparkSession — a resource leak. Add violations_df.unpersist() after violation_count is captured and ordered_df is materialised.",
+      "line": 328
+    },
+    {
+      "file": "aw19_audit_pricing_violations.py",
+      "severity": "HIGH",
+      "message": "Dependency not resolved: aw19_log.py (usp_AW19_Log) is available but never imported. A local stub log_step() is defined instead (lines 28-52). The real log_step() in aw19_log.py writes to the dbo.AW19_RunLog Delta table; the stub only prints to stdout. Replace the stub with: from aw19_log import log_step",
+      "line": 28
+    },
+    {
+      "file": "aw19_audit_pricing_violations.py",
+      "severity": "MEDIUM",
+      "message": "Case-sensitive string comparison in LEFT JOIN condition (Gotcha #2): pr_CategoryName == CategoryName and pr_TerritoryGroup == TerritoryGroup (lines 179-180) are direct equality checks. SQL Server uses CI_AS collation so these were case-insensitive in source SQL. Wrap both sides with F.lower() or use .ilike() to avoid silently dropping rows where casing differs between AW19_PricingRules and the joined tables.",
+      "line": 179
+    },
+    {
+      "file": "aw19_audit_pricing_violations.py",
+      "severity": "LOW",
+      "message": "SparkSession in main() (lines 414-416) is built without .config('spark.sql.decimalOperations.allowPrecisionLoss', 'false'). The config is applied at runtime via spark.conf.set() inside audit_pricing_violations() (line 318), which works, but any Spark-internal plan optimisation that runs before the function call will use the default (lossy) setting. Prefer setting it in the builder: SparkSession.builder.config('spark.sql.decimalOperations.allowPrecisionLoss', 'false').",
+      "line": 414
+    },
+    {
+      "file": "aw19_audit_pricing_violations.py",
+      "severity": "LOW",
+      "message": "run_pipeline() accepts params: dict (line 363) rather than a typed PipelineParams dataclass as required by the style guide. This bypasses type-checking on run_id, start_date, and end_date at call sites.",
+      "line": 363
+    },
+    {
+      "file": "aw19_log.py",
+      "severity": "MEDIUM",
+      "message": "SparkSession at line 284 is missing recommended production configs: .config('spark.sql.decimalOperations.allowPrecisionLoss', 'false'), .config('spark.sql.adaptive.enabled', 'true'), .config('spark.sql.adaptive.coalescePartitions.enabled', 'true'), .config('spark.sql.adaptive.skewJoin.enabled', 'true'). Even though this file does no decimal arithmetic, omitting these configs is a deviation from the style guide's mandatory SparkSession template.",
+      "line": 284
+    },
+    {
+      "file": "aw19_log.py",
+      "severity": "LOW",
+      "message": "Old-style typing used: 'from typing import Optional' (line 23) and Optional[str] annotations on lines 113, 127, 159, 214. Style guide mandates Python 3.12+ union syntax 'str | None'. The file already has 'from __future__ import annotations' at line 1, so 'str | None' is safe to use everywhere.",
+      "line": 23
+    },
+    {
+      "file": "aw19_log.py",
+      "severity": "LOW",
+      "message": "run_pipeline() at line 240 accepts 'argparse.Namespace' as its params argument. The style guide requires a typed 'PipelineParams' dataclass for pipeline parameters. A 'RunLogEntry' dataclass already exists in this file but is unused by run_pipeline(), creating inconsistency.",
+      "line": 240
+    },
+    {
+      "file": "aw19_log.py",
+      "severity": "INFO",
+      "message": "spark.sql() used for DDL at line 68 (CREATE TABLE IF NOT EXISTS). This is acceptable for Delta DDL bootstrap, but the raw SQL string embeds _LOG_TABLE via an f-string, which bypasses any SQL injection protection. Prefer spark.catalog or Delta Python API if available.",
+      "line": 68
+    },
+    {
+      "file": "aw19_log.py",
+      "severity": "INFO",
+      "message": "RunLogEntry dataclass defined at line 89 but never instantiated anywhere in this file. log_step() and RunLogger.log() accept individual kwargs rather than a RunLogEntry. Either use RunLogEntry as the parameter type throughout, or remove it to avoid dead code.",
+      "line": 89
+    },
+    {
+      "file": "aw19_resolve_tier_override.py",
+      "severity": "HIGH",
+      "message": "Gotcha #2 — Case-sensitive comparison: `current_tier` is compared directly with == on lines 121, 126, 134, and 141 without .lower()/.upper() normalisation. SQL Server CI_AS collation treats 'STANDARD' == 'Standard', but Python does not. If upstream passes 'standard', 'BRONZE', etc., no override branch fires and the wrong tier is silently returned. `person_type` is correctly normalised with .upper() on line 127, but `current_tier` is not. Fix: normalise at function entry → `current_tier = current_tier.strip().title()` or compare against `.lower()`.",
+      "line": 121
+    },
+    {
+      "file": "aw19_resolve_tier_override.py",
+      "severity": "MEDIUM",
+      "message": "SparkSession (lines 199-203) is missing required configs from the style guide: `.config('spark.sql.decimalOperations.allowPrecisionLoss', 'false')`, `.config('spark.sql.adaptive.enabled', 'true')`, `.config('spark.sql.adaptive.coalescePartitions.enabled', 'true')`, and `.config('spark.sql.adaptive.skewJoin.enabled', 'true')`. While no decimal arithmetic occurs in this specific file, these must be present per the output style guide to ensure safe defaults when this SparkSession is shared or reused.",
+      "line": 200
+    },
+    {
+      "file": "aw19_resolve_tier_override.py",
+      "severity": "MEDIUM",
+      "message": "Per-row Spark job anti-pattern (analogous to Gotcha #8 — Python UDF row-by-row serialisation cost): the function launches 3 separate Spark jobs on every single call — one .first() on Person.Person (line 72), one .count() on Person.PersonPhone (line 92), and one .count() on Person.EmailAddress (line 101). At call-site scale (e.g., iterating over thousands of customers) this is O(N) Spark jobs, which will be orders of magnitude slower than a vectorised join. Acknowledged in the TODO at line 58 but unresolved.",
+      "line": 72
+    },
+    {
+      "file": "aw19_resolve_tier_override.py",
+      "severity": "LOW",
+      "message": "Misleading `# noqa: F401 (kept for future vectorised refactor)` comment on line 27 implies `F` (pyspark.sql.functions) is unused. However, `F.col()` is actively used on lines 74, 94, and 103. The noqa suppression is unnecessary and the comment is factually incorrect — remove it to avoid confusing future readers.",
+      "line": 27
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "warning",
+      "message": "Possible bare col() without F. prefix",
+      "line": 375
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "warning",
+      "message": "Possible bare col() without F. prefix",
+      "line": 521
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "warning",
+      "message": "Possible bare col() without F. prefix",
+      "line": 651
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "warning",
+      "message": "Possible bare col() without F. prefix",
+      "line": 685
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "warning",
+      "message": "Possible bare col() without F. prefix",
+      "line": 686
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "warning",
+      "message": "Possible bare col() without F. prefix",
+      "line": 687
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "MEDIUM",
+      "message": "Six DataFrames are cached but .unpersist() is never called for any of them (base_orders line 239, lines line 304, priced_lines line 694, line_finals line 779, cust_summary line 922, territory_benchmarks line 951). Memory accumulates across all steps with no release, creating OOM risk on large clusters.",
+      "line": 239
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "MEDIUM",
+      "message": "spark.sql.decimalOperations.allowPrecisionLoss=false is only applied inside the CLI main() path (line 1226). When run_pipeline() is invoked programmatically (notebook, test, orchestrator), no SparkSession config is set and decimal arithmetic silently loses precision (Gotcha #5). The docstring at line 1084 only advises—it does not enforce.",
+      "line": 1078
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "MEDIUM",
+      "message": "Territory group filter (line 229) compares F.col('TerritoryGroup') == params.territory_group_filter with no case normalization. A user-supplied value such as 'north america' silently returns zero rows instead of raising an error (Gotcha #2). Should use F.lower(F.col('TerritoryGroup')) == params.territory_group_filter.lower().",
+      "line": 229
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "MEDIUM",
+      "message": "RunLogger is re-implemented locally with method log_step() instead of being imported from the provided dependency aw19_log.py, whose RunLogger exposes log(). The two APIs are incompatible: if aw19_log.RunLogger is later substituted, all call sites (log_step) will break at runtime with AttributeError.",
+      "line": 77
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "MEDIUM",
+      "message": "ufn_split_csv_int is re-implemented locally (parameter name 'csv') instead of imported from the provided dependency ufn_aw19_split_csv_int.py (parameter name 'csv_str'). Duplicate logic risks silent divergence if the shared utility is patched and this copy is not.",
+      "line": 63
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "LOW",
+      "message": "Old-style typing imports (List, Optional from typing module, line 21) are used throughout the file. Per the style guide, modern Python 3.12+ annotations list[...] and str | None should be used since 'from __future__ import annotations' is already present at line 1.",
+      "line": 21
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "LOW",
+      "message": "SparkSession in main() is missing all recommended AQE configuration keys: spark.sql.adaptive.enabled, spark.sql.adaptive.coalescePartitions.enabled, spark.sql.adaptive.skewJoin.enabled. These are low-cost settings that prevent skew-related hangs on large inputs.",
+      "line": 1222
+    },
+    {
+      "file": "aw19_sales_commission_pricing_pipeline.py",
+      "severity": "LOW",
+      "message": "spark.stop() is never called in main() after result_df.show(). The SparkSession and all executor resources remain open, which is problematic in non-YARN / local-mode deployments and leaves finalizers uncalled.",
+      "line": 1231
+    },
+    {
+      "file": "ufn_aw19_split_csv_int.py",
+      "severity": "LOW",
+      "message": "`sys` is imported on line 23 but never referenced anywhere in the file. Unused import should be removed to keep the module clean and avoid linter warnings (flake8 F401).",
+      "line": 23
+    },
+    {
+      "file": "ufn_aw19_split_csv_int.py",
+      "severity": "LOW",
+      "message": "Module-level documentation is a block comment (#) rather than a proper Python docstring (triple-quoted string). Per PEP 257 and the project style guide, a docstring must be the first statement of the module so that pydoc / help() can surface it.",
+      "line": 3
+    }
+  ],
+  "todos": [],
+  "auto_fix_results": [
+    {
+      "file_path": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/SalesCommission_Pipeline_1K/pyspark/aw19_audit_pricing_violations.py",
+      "status": "fixed",
+      "issues_attempted": 1,
+      "issues_fixed": 1,
+      "issues_remaining": [],
+      "was_reverted": false,
+      "revert_reason": "",
+      "cost_usd": 0.10536944999999999
+    },
+    {
+      "file_path": "/Users/abhisheksharma/Documents/Genaiprotos/Developer/3XDE/claude-sdk/3xcodeconvertor/output/SalesCommission_Pipeline_1K/pyspark/aw19_resolve_tier_override.py",
+      "status": "fixed",
+      "issues_attempted": 1,
+      "issues_fixed": 1,
+      "issues_remaining": [],
+      "was_reverted": false,
+      "revert_reason": "",
+      "cost_usd": 0.0493023
+    }
+  ],
+  "developer_action_items": {
+    "auto_fixed": [
+      {
+        "category": "auto_fixed",
+        "priority": "high",
+        "file": "aw19_audit_pricing_violations.py",
+        "description": "violations_df is .cache()d at line 328 but .unpersist() is never called. The cached DataFrame is held in memory for the lifetime of the SparkSession — a resource leak. Add violations_df.unpersist() after violation_count is captured and ordered_df is materialised.",
+        "how_to_fix": "Add `.config('spark.sql.decimalOperations.allowPrecisionLoss', False)` to the SparkSession builder chain before `.getOrCreate()`.",
+        "line": 328
+      },
+      {
+        "category": "auto_fixed",
+        "priority": "high",
+        "file": "aw19_resolve_tier_override.py",
+        "description": "Gotcha #2 — Case-sensitive comparison: `current_tier` is compared directly with == on lines 121, 126, 134, and 141 without .lower()/.upper() normalisation. SQL Server CI_AS collation treats 'STANDARD' == 'Standard', but Python does not. If upstream passes 'standard', 'BRONZE', etc., no override branch fires and the wrong tier is silently returned. `person_type` is correctly normalised with .upper() on line 127, but `current_tier` is not. Fix: normalise at function entry → `current_tier = current_tier.strip().title()` or compare against `.lower()`.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 121
+      }
+    ],
+    "requires_manual": [],
+    "recommended_review": [
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_audit_pricing_violations.py",
+        "description": "Case-sensitive string comparison in LEFT JOIN condition (Gotcha #2): pr_CategoryName == CategoryName and pr_TerritoryGroup == TerritoryGroup (lines 179-180) are direct equality checks. SQL Server uses CI_AS collation so these were case-insensitive in source SQL. Wrap both sides with F.lower() or use .ilike() to avoid silently dropping rows where casing differs between AW19_PricingRules and the joined tables.",
+        "how_to_fix": "Wrap both sides of the comparison in `F.lower()`: `F.lower(F.col('col')) == 'value'` or use `.ilike()` for LIKE patterns.",
+        "line": 179
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "aw19_audit_pricing_violations.py",
+        "description": "SparkSession in main() (lines 414-416) is built without .config('spark.sql.decimalOperations.allowPrecisionLoss', 'false'). The config is applied at runtime via spark.conf.set() inside audit_pricing_violations() (line 318), which works, but any Spark-internal plan optimisation that runs before the function call will use the default (lossy) setting. Prefer setting it in the builder: SparkSession.builder.config('spark.sql.decimalOperations.allowPrecisionLoss', 'false').",
+        "how_to_fix": "Add `.config('spark.sql.decimalOperations.allowPrecisionLoss', False)` to the SparkSession builder chain before `.getOrCreate()`.",
+        "line": 414
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "aw19_audit_pricing_violations.py",
+        "description": "run_pipeline() accepts params: dict (line 363) rather than a typed PipelineParams dataclass as required by the style guide. This bypasses type-checking on run_id, start_date, and end_date at call sites.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 363
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_log.py",
+        "description": "SparkSession at line 284 is missing recommended production configs: .config('spark.sql.decimalOperations.allowPrecisionLoss', 'false'), .config('spark.sql.adaptive.enabled', 'true'), .config('spark.sql.adaptive.coalescePartitions.enabled', 'true'), .config('spark.sql.adaptive.skewJoin.enabled', 'true'). Even though this file does no decimal arithmetic, omitting these configs is a deviation from the style guide's mandatory SparkSession template.",
+        "how_to_fix": "Add `.config('spark.sql.decimalOperations.allowPrecisionLoss', False)` to the SparkSession builder chain before `.getOrCreate()`.",
+        "line": 284
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "aw19_log.py",
+        "description": "Old-style typing used: 'from typing import Optional' (line 23) and Optional[str] annotations on lines 113, 127, 159, 214. Style guide mandates Python 3.12+ union syntax 'str | None'. The file already has 'from __future__ import annotations' at line 1, so 'str | None' is safe to use everywhere.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 23
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "aw19_log.py",
+        "description": "run_pipeline() at line 240 accepts 'argparse.Namespace' as its params argument. The style guide requires a typed 'PipelineParams' dataclass for pipeline parameters. A 'RunLogEntry' dataclass already exists in this file but is unused by run_pipeline(), creating inconsistency.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 240
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "aw19_log.py",
+        "description": "spark.sql() used for DDL at line 68 (CREATE TABLE IF NOT EXISTS). This is acceptable for Delta DDL bootstrap, but the raw SQL string embeds _LOG_TABLE via an f-string, which bypasses any SQL injection protection. Prefer spark.catalog or Delta Python API if available.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 68
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "aw19_log.py",
+        "description": "RunLogEntry dataclass defined at line 89 but never instantiated anywhere in this file. log_step() and RunLogger.log() accept individual kwargs rather than a RunLogEntry. Either use RunLogEntry as the parameter type throughout, or remove it to avoid dead code.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 89
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_resolve_tier_override.py",
+        "description": "SparkSession (lines 199-203) is missing required configs from the style guide: `.config('spark.sql.decimalOperations.allowPrecisionLoss', 'false')`, `.config('spark.sql.adaptive.enabled', 'true')`, `.config('spark.sql.adaptive.coalescePartitions.enabled', 'true')`, and `.config('spark.sql.adaptive.skewJoin.enabled', 'true')`. While no decimal arithmetic occurs in this specific file, these must be present per the output style guide to ensure safe defaults when this SparkSession is shared or reused.",
+        "how_to_fix": "Add `.config('spark.sql.decimalOperations.allowPrecisionLoss', False)` to the SparkSession builder chain before `.getOrCreate()`.",
+        "line": 200
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_resolve_tier_override.py",
+        "description": "Per-row Spark job anti-pattern (analogous to Gotcha #8 — Python UDF row-by-row serialisation cost): the function launches 3 separate Spark jobs on every single call — one .first() on Person.Person (line 72), one .count() on Person.PersonPhone (line 92), and one .count() on Person.EmailAddress (line 101). At call-site scale (e.g., iterating over thousands of customers) this is O(N) Spark jobs, which will be orders of magnitude slower than a vectorised join. Acknowledged in the TODO at line 58 but unresolved.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 72
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "aw19_resolve_tier_override.py",
+        "description": "Misleading `# noqa: F401 (kept for future vectorised refactor)` comment on line 27 implies `F` (pyspark.sql.functions) is unused. However, `F.col()` is actively used on lines 74, 94, and 103. The noqa suppression is unnecessary and the comment is factually incorrect — remove it to avoid confusing future readers.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 27
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "Possible bare col() without F. prefix",
+        "how_to_fix": "Add the `F.` prefix: change `col('name')` to `F.col('name')` to avoid NameError and ensure consistent function resolution.",
+        "line": 375
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "Possible bare col() without F. prefix",
+        "how_to_fix": "Add the `F.` prefix: change `col('name')` to `F.col('name')` to avoid NameError and ensure consistent function resolution.",
+        "line": 521
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "Possible bare col() without F. prefix",
+        "how_to_fix": "Add the `F.` prefix: change `col('name')` to `F.col('name')` to avoid NameError and ensure consistent function resolution.",
+        "line": 651
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "Possible bare col() without F. prefix",
+        "how_to_fix": "Add the `F.` prefix: change `col('name')` to `F.col('name')` to avoid NameError and ensure consistent function resolution.",
+        "line": 685
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "Possible bare col() without F. prefix",
+        "how_to_fix": "Add the `F.` prefix: change `col('name')` to `F.col('name')` to avoid NameError and ensure consistent function resolution.",
+        "line": 686
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "Possible bare col() without F. prefix",
+        "how_to_fix": "Add the `F.` prefix: change `col('name')` to `F.col('name')` to avoid NameError and ensure consistent function resolution.",
+        "line": 687
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "Six DataFrames are cached but .unpersist() is never called for any of them (base_orders line 239, lines line 304, priced_lines line 694, line_finals line 779, cust_summary line 922, territory_benchmarks line 951). Memory accumulates across all steps with no release, creating OOM risk on large clusters.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 239
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "spark.sql.decimalOperations.allowPrecisionLoss=false is only applied inside the CLI main() path (line 1226). When run_pipeline() is invoked programmatically (notebook, test, orchestrator), no SparkSession config is set and decimal arithmetic silently loses precision (Gotcha #5). The docstring at line 1084 only advises—it does not enforce.",
+        "how_to_fix": "Add `.config('spark.sql.decimalOperations.allowPrecisionLoss', False)` to the SparkSession builder chain before `.getOrCreate()`.",
+        "line": 1078
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "Territory group filter (line 229) compares F.col('TerritoryGroup') == params.territory_group_filter with no case normalization. A user-supplied value such as 'north america' silently returns zero rows instead of raising an error (Gotcha #2). Should use F.lower(F.col('TerritoryGroup')) == params.territory_group_filter.lower().",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 229
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "RunLogger is re-implemented locally with method log_step() instead of being imported from the provided dependency aw19_log.py, whose RunLogger exposes log(). The two APIs are incompatible: if aw19_log.RunLogger is later substituted, all call sites (log_step) will break at runtime with AttributeError.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 77
+      },
+      {
+        "category": "review",
+        "priority": "medium",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "ufn_split_csv_int is re-implemented locally (parameter name 'csv') instead of imported from the provided dependency ufn_aw19_split_csv_int.py (parameter name 'csv_str'). Duplicate logic risks silent divergence if the shared utility is patched and this copy is not.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 63
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "Old-style typing imports (List, Optional from typing module, line 21) are used throughout the file. Per the style guide, modern Python 3.12+ annotations list[...] and str | None should be used since 'from __future__ import annotations' is already present at line 1.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 21
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "SparkSession in main() is missing all recommended AQE configuration keys: spark.sql.adaptive.enabled, spark.sql.adaptive.coalescePartitions.enabled, spark.sql.adaptive.skewJoin.enabled. These are low-cost settings that prevent skew-related hangs on large inputs.",
+        "how_to_fix": "Add `.config('spark.sql.decimalOperations.allowPrecisionLoss', False)` to the SparkSession builder chain before `.getOrCreate()`.",
+        "line": 1222
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "aw19_sales_commission_pricing_pipeline.py",
+        "description": "spark.stop() is never called in main() after result_df.show(). The SparkSession and all executor resources remain open, which is problematic in non-YARN / local-mode deployments and leaves finalizers uncalled.",
+        "how_to_fix": "Add `.config('spark.sql.decimalOperations.allowPrecisionLoss', False)` to the SparkSession builder chain before `.getOrCreate()`.",
+        "line": 1231
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "ufn_aw19_split_csv_int.py",
+        "description": "`sys` is imported on line 23 but never referenced anywhere in the file. Unused import should be removed to keep the module clean and avoid linter warnings (flake8 F401).",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 23
+      },
+      {
+        "category": "review",
+        "priority": "low",
+        "file": "ufn_aw19_split_csv_int.py",
+        "description": "Module-level documentation is a block comment (#) rather than a proper Python docstring (triple-quoted string). Per PEP 257 and the project style guide, a docstring must be the first statement of the module so that pydoc / help() can surface it.",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 3
+      }
+    ],
+    "infrastructure_setup": [
+      {
+        "category": "infrastructure",
+        "priority": "high",
+        "file": "aw19_audit_pricing_violations.py",
+        "description": "Dependency not resolved: aw19_log.py (usp_AW19_Log) is available but never imported. A local stub log_step() is defined instead (lines 28-52). The real log_step() in aw19_log.py writes to the dbo.AW19_RunLog Delta table; the stub only prints to stdout. Replace the stub with: from aw19_log import log_step",
+        "how_to_fix": "Review the issue manually and apply the appropriate PySpark fix. Refer to the PySpark migration guide for deprecated APIs.",
+        "line": 28
+      }
+    ],
+    "todos_in_code": [
+      "aw19_audit_pricing_violations.py: # TODO: Replace with actual call to converted usp_AW19_Log PySpark function",
+      "aw19_audit_pricing_violations.py: # TODO: Constraint — LEFT JOIN to AW19_PricingRules (SQL lines 690-694) may match",
+      "aw19_log.py: # TODO: Add any additional columns defined in dbo.AW19_RunLog DDL (lines 10-22)",
+      "aw19_log.py: TODO: Verify the full DDL from SQL lines 10-22 and extend the",
+      "aw19_resolve_tier_override.py: #   - TODO: Call sites must be updated from",
+      "aw19_resolve_tier_override.py: Limitations / TODOs:",
+      "aw19_resolve_tier_override.py: - TODO: Per-row Spark table reads (SQL lines 625-626) are efficient",
+      "aw19_sales_commission_pricing_pipeline.py: # TODO: Transaction semantics at lines 160/594 — consider Delta Lake for ACID",
+      "aw19_sales_commission_pricing_pipeline.py: # TODO: Constraint — INCLUDE columns on indexes not enforced; repartition",
+      "aw19_sales_commission_pricing_pipeline.py: # TODO: Constraint — INCLUDE columns on indexes not enforced; repartition",
+      "aw19_sales_commission_pricing_pipeline.py: # TODO: Constraint — INCLUDE columns on indexes not enforced; repartition",
+      "aw19_sales_commission_pricing_pipeline.py: LEFT JOINs — see TODO below.",
+      "aw19_sales_commission_pricing_pipeline.py: # TODO: Correlated scalar subqueries at lines 579-586 (UniqueCustomers,",
+      "aw19_sales_commission_pricing_pipeline.py: # TODO: Transaction semantics at lines 160/594 — consider Delta Lake for"
+    ],
+    "summary": "2 issues automatically fixed (deprecated APIs, SparkSession configs, annotation mismatches). 1 item need infrastructure setup (Delta Lake tables, CDF, JDBC) — see infrastructure_setup. 27 items flagged for recommended review (null ordering, case sensitivity, OOM risk) — see recommended_review. 14 TODO comments remain in generated files marking patterns that need manual attention."
+  }
+}

@@ -319,11 +319,21 @@ class ObjectPlan(BaseModel):
     strategy: str = "Standard conversion"
 
 
+class OutputGroup(BaseModel):
+    """A group of related SQL objects that will be converted into a single .py file."""
+    group_name: str          # "utilities", "sales_commission_pipeline", "audit_pricing_violations"
+    output_filename: str     # "utils.py", "sales_commission_pricing_pipeline.py"
+    objects: list[str]       # SQL object names in this group
+    group_type: str          # "utilities" | "main_pipeline" | "standalone"
+    description: str = ""    # Human-readable explanation of why these are grouped
+
+
 class ConversionPlan(BaseModel):
     total_objects: int
     conversion_levels: list[ConversionLevel] = Field(default_factory=list)
     dependency_edges: list[DependencyEdge] = Field(default_factory=list)
     object_plans: dict[str, ObjectPlan] = Field(default_factory=dict)
+    output_groups: list[OutputGroup] = Field(default_factory=list)
 
 
 PLAN_OUTPUT_SCHEMA: dict = {
@@ -496,6 +506,16 @@ class DeveloperActionItems(BaseModel):
         )
 
 
+class FileConfidence(BaseModel):
+    """Completion and confidence assessment for a converted output file."""
+    file: str
+    completion_pct: float = 0.0       # 0-100: how much of the conversion is done
+    confidence_pct: float = 0.0       # 0-100: how confident we are in correctness
+    grade: str = ""                   # "A+" / "A" / "B" / "C" / "D" / "F"
+    highlights: list[str] = Field(default_factory=list)       # what went well
+    needs_attention: list[str] = Field(default_factory=list)  # what needs human work
+
+
 class ConversionReport(BaseModel):
     total_objects: int = 0
     converted: int = 0
@@ -507,6 +527,9 @@ class ConversionReport(BaseModel):
     file_complexity: str = ""
     cost_breakdown: CostBreakdown = Field(default_factory=CostBreakdown)
     phase_timings: PhaseTimings = Field(default_factory=PhaseTimings)
+    confidence_scores: list[FileConfidence] = Field(default_factory=list)
+    overall_completion: float = 0.0    # average completion across all files
+    overall_confidence: float = 0.0    # average confidence across all files
     objects: list[ConversionResult] = Field(default_factory=list)
     validation_issues: list[ValidationIssue] = Field(default_factory=list)
     todos: list[str] = Field(default_factory=list)
