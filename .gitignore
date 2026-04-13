@@ -80,6 +80,12 @@ cover/
 *.swp
 *.swo
 
+# Graphify knowledge graph output
+graphify-out/
+
+# Obsidian vault config (workspace state, plugin settings)
+.obsidian/
+
 # macOS
 .DS_Store
 .AppleDouble

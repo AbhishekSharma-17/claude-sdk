@@ -1,0 +1,25 @@
+# Virtual environment
+.venv/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+__pycache__/
+
+# Generated output (don't graph the graph)
+graphify-out/
+
+# Sample data (input/output files, not architecture)
+sample_data/
+3xcodeconvertor/input/
+3xcodeconvertor/output/
+
+# Claude Code internals
+.claude/
+
+# Lock files
+uv.lock
+
+# Learn/scratch files
+learn/
